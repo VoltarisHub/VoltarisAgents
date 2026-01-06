@@ -168,6 +168,29 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
         onCancel={handlers.handleWarningCancel}
       />
 
+      <Portal>
+        <Dialog visible={logic.showMLXConfirmDialog} onDismiss={logic.handleMLXConfirmCancel}>
+          <Dialog.Title>Download MLX Model</Dialog.Title>
+          <Dialog.Content>
+            <Text style={{ marginBottom: 8 }}>
+              This will download {logic.pendingMLXDownload?.fileCount} required MLX files for:
+            </Text>
+            <Text style={{ fontWeight: '600', marginBottom: 8 }}>
+              {logic.pendingMLXDownload?.modelName}
+            </Text>
+            <Text>
+              Total size: {logic.pendingMLXDownload?.totalSize ? 
+                (logic.pendingMLXDownload.totalSize / (1024 * 1024 * 1024)).toFixed(2) + ' GB' : 
+                'Unknown'}
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={logic.handleMLXConfirmCancel}>Cancel</Button>
+            <Button onPress={logic.handleMLXConfirmAccept}>Download</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
       {logic.selectedVisionModel && (
         <VisionDownloadDialog
           visible={logic.visionDialogVisible}

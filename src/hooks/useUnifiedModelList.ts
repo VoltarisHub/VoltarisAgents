@@ -41,6 +41,14 @@ export const useUnifiedModelList = (
   } | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [forceRender, setForceRender] = useState(0);
+  const [showMLXConfirmDialog, setShowMLXConfirmDialog] = useState(false);
+  const [pendingMLXDownload, setPendingMLXDownload] = useState<{
+    modelName: string,
+    fileCount: number,
+    totalSize: number,
+    details: HFModelDetails,
+    filesToDownload: any[]
+  } | null>(null);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -186,28 +194,22 @@ export const useUnifiedModelList = (
           return;
         }
 
-        const hideWarning = await AsyncStorage.getItem('hideModelWarning');
         const filesToDownload = details.mlxFileGroup.required.map(file => ({
           filename: file.rfilename,
           downloadUrl: file.url || '',
           size: file.size || 0,
         }));
 
-        const startMLXDownload = async () => {
-          await proceedWithMultipleDownloads(filesToDownload, details.id);
-        };
+        const totalSize = filesToDownload.reduce((sum, file) => sum + file.size, 0);
 
-        if (hideWarning === 'true') {
-          await startMLXDownload();
-        } else {
-          setPendingDownload({ 
-            filename: `${filesToDownload.length} MLX files`, 
-            downloadUrl: '', 
-            modelId: details.id,
-            filesToDownload: filesToDownload
-          });
-          setShowWarningDialog(true);
-        }
+        setPendingMLXDownload({
+          modelName: details.id,
+          fileCount: filesToDownload.length,
+          totalSize: totalSize,
+          details: details,
+          filesToDownload: filesToDownload
+        });
+        setShowMLXConfirmDialog(true);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         showDialog('Error', `Failed to load model details: ${errorMessage}`);
@@ -218,6 +220,33 @@ export const useUnifiedModelList = (
     }
 
     await handleModelPress(hfModel);
+  };
+
+  const handleMLXConfirmAccept = async () => {
+    setShowMLXConfirmDialog(false);
+    
+    if (!pendingMLXDownload) return;
+
+    const hideWarning = await AsyncStorage.getItem('hideModelWarning');
+    
+    if (hideWarning === 'true') {
+      await proceedWithMultipleDownloads(pendingMLXDownload.filesToDownload, pendingMLXDownload.modelName);
+      setPendingMLXDownload(null);
+    } else {
+      setPendingDownload({ 
+        filename: `${pendingMLXDownload.fileCount} MLX files`, 
+        downloadUrl: '', 
+        modelId: pendingMLXDownload.modelName,
+        filesToDownload: pendingMLXDownload.filesToDownload
+      });
+      setPendingMLXDownload(null);
+      setShowWarningDialog(true);
+    }
+  };
+
+  const handleMLXConfirmCancel = () => {
+    setShowMLXConfirmDialog(false);
+    setPendingMLXDownload(null);
   };
 
   const proceedWithDownload = async (filename: string, downloadUrl: string, modelId?: string) => {
@@ -397,6 +426,8 @@ export const useUnifiedModelList = (
     pendingVisionDownload,
     selectedFiles,
     forceRender,
+    showMLXConfirmDialog,
+    pendingMLXDownload,
     showDialog,
     hideDialog,
     handleFilterExpandChange,
@@ -406,6 +437,8 @@ export const useUnifiedModelList = (
     isModelDownloaded,
     handleModelPress,
     handleHfModelDownload,
+    handleMLXConfirmAccept,
+    handleMLXConfirmCancel,
     proceedWithDownload,
     proceedWithMultipleDownloads,
     proceedWithCuratedDownload,
