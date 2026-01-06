@@ -31,6 +31,15 @@ export default function ModelFilesDialog({
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [downloadingSelected, setDownloadingSelected] = useState(false);
 
+  useEffect(() => {
+    if (visible && modelDetails && modelDetails.modelFormat === ModelFormat.MLX && modelDetails.mlxFileGroup) {
+      const requiredFilenames = modelDetails.mlxFileGroup.required.map(f => f.rfilename);
+      setSelectedFiles(new Set(requiredFilenames));
+    } else if (!visible) {
+      setSelectedFiles(new Set());
+    }
+  }, [visible, modelDetails]);
+
   const toggleFileSelection = (filename: string) => {
     setSelectedFiles(prev => {
       const newSet = new Set(prev);
@@ -256,7 +265,12 @@ export default function ModelFilesDialog({
                 <MaterialCommunityIcons name="download-multiple" size={20} color="#FFFFFF" style={styles.buttonIcon} />
               )}
               <Text style={styles.downloadSelectedButtonText}>
-                {downloadingSelected ? `Downloading ${selectedFiles.size} file${selectedFiles.size > 1 ? 's' : ''}...` : `Download Selected (${selectedFiles.size})`}
+                {downloadingSelected 
+                  ? `Downloading ${selectedFiles.size} file${selectedFiles.size > 1 ? 's' : ''}...` 
+                  : isMLXModel 
+                    ? `Download for MLX (${selectedFiles.size})` 
+                    : `Download Selected (${selectedFiles.size})`
+                }
               </Text>
             </TouchableOpacity>
           )}
