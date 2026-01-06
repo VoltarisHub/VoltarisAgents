@@ -235,12 +235,6 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
             )}
           </View>
           
-          {model.description && (
-            <Text style={[styles.modelDescription, { color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
-              {model.description}
-            </Text>
-          )}
-          
           {model.additionalFiles && model.additionalFiles.length > 0 && (
             <Text style={[styles.additionalFilesNote, { color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)' }]}>
               <MaterialCommunityIcons name="information-outline" size={14} color={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)'} />
@@ -393,12 +387,6 @@ const styles = StyleSheet.create({
   metaText: {
     fontSize: 13,
     marginLeft: 4,
-  },
-  modelDescription: {
-    marginTop: 4,
-    marginBottom: 6,
-    fontSize: 14,
-    lineHeight: 20,
   },
   downloadProgress: {
     marginTop: 12,

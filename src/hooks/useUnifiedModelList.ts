@@ -83,7 +83,7 @@ export const useUnifiedModelList = (
 
     return {
       name: modelName,
-      description: `HuggingFace model • ${formatDownloads(hfModel.downloads || 0)} downloads • ${hfModel.likes || 0} likes`,
+      description: '',
       size: `${formatDownloads(hfModel.downloads || 0)} downloads`,
       huggingFaceLink: `https://huggingface.co/${modelId}`,
       licenseLink: '',
