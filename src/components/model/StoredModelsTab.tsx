@@ -144,6 +144,7 @@ export const StoredModelsTab: React.FC<StoredModelsTabProps> = ({
   const renderItem = ({ item }: { item: any }) => {
     const isProjectorModel = item.name.toLowerCase().includes('mmproj') ||
                             item.name.toLowerCase().includes('.proj');
+    const isGGUFModel = item.name.toLowerCase().includes('.gguf');
     
     if (item.isMLXGroup) {
       const isExpanded = expandedGroups.has(item.groupKey);
@@ -166,16 +167,16 @@ export const StoredModelsTab: React.FC<StoredModelsTabProps> = ({
                 <Text style={[styles.groupName, { color: themeColors.text }]} numberOfLines={1}>
                   {item.name}
                 </Text>
-                <View style={styles.mlxBadge}>
-                  <MaterialCommunityIcons name="apple" size={12} color="#FFFFFF" style={{ marginRight: 4 }} />
-                  <Text style={styles.mlxBadgeText}>MLX</Text>
-                </View>
               </View>
               <View style={styles.groupMetadata}>
                 <MaterialCommunityIcons name="download" size={14} color={themeColors.secondaryText} />
                 <Text style={[styles.metaText, { color: themeColors.secondaryText }]}>
                   {formatBytes(item.size)}
                 </Text>
+                <View style={[styles.mlxBadge, { backgroundColor: getThemeAwareColor('#4a0660', currentTheme) }]}>
+                  <MaterialCommunityIcons name="apple" size={12} color="#FFFFFF" style={{ marginRight: 4 }} />
+                  <Text style={styles.mlxBadgeText}>MLX</Text>
+                </View>
               </View>
             </View>
             <View style={styles.buttonContainer}>
@@ -380,13 +381,12 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   mlxBadge: {
-    backgroundColor: '#4a0660',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    marginLeft: 4,
+    marginLeft: 8,
   },
   mlxBadgeText: {
     color: '#FFFFFF',

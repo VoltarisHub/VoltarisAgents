@@ -49,6 +49,7 @@ const StoredModelItem: React.FC<StoredModelProps> = ({
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const displayName = isMLXGroup ? name : getDisplayName(name);
   const formattedSize = formatBytes(size);
+  const isGGUFModel = name.toLowerCase().includes('.gguf');
 
   return (
     <View style={[styles.modelItem, { backgroundColor: themeColors.borderColor }]}>
@@ -84,6 +85,11 @@ const StoredModelItem: React.FC<StoredModelProps> = ({
               {formattedSize}
             </Text>
           </View>
+          {isGGUFModel && (
+            <View style={[styles.llamaBadgeContainer, { backgroundColor: getThemeAwareColor('#4a0660', currentTheme) }]}>
+              <Text style={styles.llamaBadgeText}>GGUF</Text>
+            </View>
+          )}
         </View>
       </View>
       <View style={styles.buttonContainer}>
@@ -163,6 +169,19 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   mlxBadgeText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  llamaBadgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  llamaBadgeText: {
     color: 'white',
     fontSize: 11,
     fontWeight: '600',
