@@ -28,6 +28,45 @@ export default function ModelFilesDialog({
   const themeColors = theme[currentTheme];
   const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
   const [downloadingMLXPackage, setDownloadingMLXPackage] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [downloadingSelected, setDownloadingSelected] = useState(false);
+
+  const toggleFileSelection = (filename: string) => {
+    setSelectedFiles(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(filename)) {
+        newSet.delete(filename);
+      } else {
+        newSet.add(filename);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedFiles.size === modelDetails?.files.length) {
+      setSelectedFiles(new Set());
+    } else {
+      setSelectedFiles(new Set(modelDetails?.files.map(f => f.filename) || []));
+    }
+  };
+
+  const handleDownloadSelected = async () => {
+    if (selectedFiles.size === 0 || !modelDetails) return;
+
+    setDownloadingSelected(true);
+    try {
+      const filesToDownload = modelDetails.files.filter(f => selectedFiles.has(f.filename));
+      
+      for (const file of filesToDownload) {
+        await handleDownload(file.filename, file.downloadUrl);
+      }
+    } catch (error) {
+    } finally {
+      setDownloadingSelected(false);
+      setSelectedFiles(new Set());
+    }
+  };
 
   if (!visible || !modelDetails) return null;
 
@@ -68,10 +107,25 @@ export default function ModelFilesDialog({
 
   const renderFileItem = (file: HFFile, index: number) => {
     const isCurrentlyDownloading = downloadingFile === file.filename;
+    const isSelected = selectedFiles.has(file.filename);
 
     return (
       <View key={index} style={styles.fileItem}>
         <View style={styles.fileHeader}>
+          <TouchableOpacity
+            style={styles.checkboxContainer}
+            onPress={() => toggleFileSelection(file.filename)}
+          >
+            <View style={[
+              styles.checkbox,
+              { borderColor: themeColors.text },
+              isSelected && { backgroundColor: themeColors.primary }
+            ]}>
+              {isSelected && (
+                <MaterialCommunityIcons name="check" size={16} color="#FFFFFF" />
+              )}
+            </View>
+          </TouchableOpacity>
           <Text style={[styles.fileName, { color: themeColors.text }]} numberOfLines={2}>
             {file.filename}
           </Text>
@@ -162,16 +216,50 @@ export default function ModelFilesDialog({
           </View>
 
           <View style={styles.filesHeader}>
-            <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Available Model Files</Text>
-            <Text style={[styles.sectionSubtitle, { color: themeColors.secondaryText }]}>
-              {modelDetails.files.length} file{modelDetails.files.length !== 1 ? 's' : ''} available
-            </Text>
+            <View style={styles.filesHeaderTop}>
+              <View>
+                <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Available Model Files</Text>
+                <Text style={[styles.sectionSubtitle, { color: themeColors.secondaryText }]}>
+                  {modelDetails.files.length} file{modelDetails.files.length !== 1 ? 's' : ''} available
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.selectAllButton}
+                onPress={toggleSelectAll}
+              >
+                <Text style={[styles.selectAllText, { color: themeColors.primary }]}>
+                  {selectedFiles.size === modelDetails.files.length ? 'Deselect All' : 'Select All'}
+                </Text>
+              </TouchableOpacity>
+            </View>
             {isMLXModel && modelDetails.mlxFileGroup && onDownloadMLXModel && (
               <Text style={[styles.mlxNote, { color: themeColors.secondaryText }]}>
                 Total package: {huggingFaceService.formatModelSize(modelDetails.mlxFileGroup.totalSize)} ({modelDetails.mlxFileGroup.required.length} required files)
               </Text>
             )}
           </View>
+
+          {selectedFiles.size > 0 && (
+            <TouchableOpacity
+              style={[
+                styles.downloadSelectedButton,
+                {
+                  backgroundColor: downloadingSelected ? themeColors.primary + '60' : themeColors.primary,
+                },
+              ]}
+              onPress={handleDownloadSelected}
+              disabled={downloadingSelected}
+            >
+              {downloadingSelected ? (
+                <ActivityIndicator size="small" color="#FFFFFF" style={styles.loadingIcon} />
+              ) : (
+                <MaterialCommunityIcons name="download-multiple" size={20} color="#FFFFFF" style={styles.buttonIcon} />
+              )}
+              <Text style={styles.downloadSelectedButtonText}>
+                {downloadingSelected ? `Downloading ${selectedFiles.size} file${selectedFiles.size > 1 ? 's' : ''}...` : `Download Selected (${selectedFiles.size})`}
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {isMLXModel && modelDetails.mlxFileGroup && onDownloadMLXModel && (
             <TouchableOpacity
@@ -289,6 +377,46 @@ const styles = StyleSheet.create({
   filesHeader: {
     marginBottom: 16,
   },
+  filesHeaderTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  selectAllButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  selectAllText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  checkboxContainer: {
+    marginRight: 12,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  downloadSelectedButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  downloadSelectedButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
@@ -326,6 +454,8 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   fileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 12,
   },
   fileName: {
