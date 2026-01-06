@@ -11,7 +11,8 @@
         "gradleCommand": ":app:assembleDebug"
       },
       "ios": {
-        "simulator": true
+        "simulator": true,
+        "image": "macos-sequoia-15.6-xcode-26.0"
       }
     },
     "preview": {
@@ -21,7 +22,8 @@
         "buildType": "apk"
       },
       "ios": {
-        "buildConfiguration": "Release"
+        "buildConfiguration": "Release",
+        "image": "macos-sequoia-15.6-xcode-26.0"
       }
     },
     "production": {
@@ -31,7 +33,7 @@
         "buildType": "app-bundle"
       },
       "ios": {
-        "autoIncrement": false,
+        "autoIncrement": true,
         "image": "macos-sequoia-15.6-xcode-26.0"
       }
     }
