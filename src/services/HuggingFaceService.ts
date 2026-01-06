@@ -89,6 +89,8 @@ class HuggingFaceService {
       searchParams.append('config', 'true');
       searchParams.append('sort', 'downloads');
       searchParams.append('direction', '-1');
+      
+      searchParams.append('filter', 'gguf');
 
       const url = `${this.apiUrl}/models?${searchParams.toString()}`;
       const headers = this.getHeaders();
@@ -109,7 +111,23 @@ class HuggingFaceService {
         throw new Error('Invalid response format from HuggingFace API');
       }
 
-      const filteredModels = models.filter((model: HFModel) => {
+      const mlxUrl = `${this.apiUrl}/models?${searchParams.toString().replace('filter=gguf', 'filter=mlx')}`;
+      const mlxResponse = await fetch(mlxUrl, {
+        method: 'GET',
+        headers,
+      });
+      
+      let mlxModels: any[] = [];
+      if (mlxResponse.ok) {
+        mlxModels = await mlxResponse.json();
+        if (!Array.isArray(mlxModels)) {
+          mlxModels = [];
+        }
+      }
+      
+      const combinedModels = [...models, ...mlxModels];
+
+      const filteredModels = combinedModels.filter((model: HFModel) => {
         const hasGgufTag = model.tags?.some(tag => 
           tag.toLowerCase().includes('gguf') || 
           tag.toLowerCase().includes('quantized')
@@ -118,9 +136,10 @@ class HuggingFaceService {
         const nameHasGguf = model.id?.toLowerCase().includes('gguf');
         
         const hasMlxTag = model.tags?.some(tag => tag.toLowerCase().includes('mlx'));
+        const hasMlxLibrary = model.library_name === 'mlx';
         const nameHasMlx = model.id?.toLowerCase().includes('mlx');
         
-        return hasGgufTag || hasGgufLibrary || nameHasGguf || hasMlxTag || nameHasMlx;
+        return hasGgufTag || hasGgufLibrary || nameHasGguf || hasMlxTag || hasMlxLibrary || nameHasMlx;
       });
       
       const sortedModels = filteredModels.sort((a, b) => {
