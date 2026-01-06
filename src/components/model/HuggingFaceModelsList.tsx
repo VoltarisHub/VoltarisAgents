@@ -57,7 +57,7 @@ export const HuggingFaceModelsList: React.FC<HuggingFaceModelsListProps> = ({
       ) : (
         !isLoading && (
           <Text style={[styles.noResultsText, { color: themeColors.textSecondary }]}>
-            No GGUF models found for "{searchQuery}"
+            No models found for "{searchQuery}"
           </Text>
         )
       )}

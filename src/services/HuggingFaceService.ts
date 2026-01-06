@@ -19,6 +19,7 @@ interface HFModel {
   siblings?: ModelFile[];
   hasVision?: boolean;
   capabilities?: string[];
+  modelFormat?: ModelFormat;
 }
 
 interface HFFile {
@@ -117,7 +118,10 @@ class HuggingFaceService {
         const hasGgufLibrary = model.library_name === 'gguf';
         const nameHasGguf = model.id?.toLowerCase().includes('gguf');
         
-        return hasGgufTag || hasGgufLibrary || nameHasGguf;
+        const hasMlxTag = model.tags?.some(tag => tag.toLowerCase().includes('mlx'));
+        const nameHasMlx = model.id?.toLowerCase().includes('mlx');
+        
+        return hasGgufTag || hasGgufLibrary || nameHasGguf || hasMlxTag || nameHasMlx;
       });
       
       const sortedModels = filteredModels.sort((a, b) => {
@@ -326,11 +330,20 @@ class HuggingFaceService {
       const ggufSiblingsWithUrl = this.addDownloadUrls(model.id, filteredGGUFSiblings);
       const capabilities = hasVision ? ['vision', 'text'] : ['text'];
       
+      const hfFiles = allSiblings.map(s => ({
+        filename: s.rfilename,
+        size: s.size || 0,
+        downloadUrl: s.url || '',
+        lastModified: new Date().toISOString(),
+      }));
+      const modelFormat = this.detectModelType(model.id, hfFiles, model.tags);
+      
       return {
         ...model,
         siblings: ggufSiblingsWithUrl,
         hasVision,
         capabilities,
+        modelFormat,
       };
     });
   }

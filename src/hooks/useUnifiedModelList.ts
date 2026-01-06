@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { huggingFaceService, HFModel, HFModelDetails } from '../services/HuggingFaceService';
 import { modelDownloader } from '../services/ModelDownloader';
 import { DownloadableModel } from '../components/model/DownloadableModelItem';
+import { ModelFormat } from '../types/models';
 
 export const useUnifiedModelList = (
   storedModels: any[],
@@ -95,6 +96,13 @@ export const useUnifiedModelList = (
     const tags = [];
     if (hfModel.hasVision) {
       tags.push('vision');
+    }
+    
+    const modelFormat = hfModel.modelFormat || ModelFormat.UNKNOWN;
+    if (modelFormat === ModelFormat.MLX) {
+      tags.push('mlx');
+    } else if (modelFormat === ModelFormat.GGUF) {
+      tags.push('llamacpp');
     }
 
     return {
