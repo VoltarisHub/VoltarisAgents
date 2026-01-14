@@ -115,20 +115,26 @@ export const groupMLXModels = (items: StoredModel[]): (StoredModel | MLXGroup)[]
     const size = files.reduce((sum, file) => sum + (file.size || 0), 0);
     const first = files[0];
     const dirName = dirPath.split('/').pop() || '';
+    
+    const commonPrefix = files[0].name.split('_').slice(0, -1).join('_');
+    const displayName = commonPrefix || dirName;
+    const modelId = commonPrefix.replace(/_/g, '/');
 
     console.log('mlx_group_created', {
       dirPath,
       dirName,
       firstFilePath: first.path,
       filesCount: files.length,
-      fileNames: files.map(f => f.name)
+      fileNames: files.map(f => f.name),
+      commonPrefix,
+      modelId
     });
 
     grouped.push({
       ...first,
-      name: dirName,
+      name: displayName,
       size,
-      path: dirPath,
+      path: modelId,
       isMLXGroup: true,
       mlxFiles: files,
       groupKey: dirPath,

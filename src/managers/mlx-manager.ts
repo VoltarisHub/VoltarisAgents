@@ -26,10 +26,18 @@ class MlxManager implements InferenceManager {
     
     let modelId = modelIdOrPath;
     
-    if (modelIdOrPath.includes('/models/mlx/') || modelIdOrPath.includes('file://')) {
-      const parts = modelIdOrPath.split('/');
-      const dirName = parts[parts.length - 1] || parts[parts.length - 2];
-      modelId = dirName.replace(/_/g, '/');
+    if (modelIdOrPath.includes('/models/') || 
+        modelIdOrPath.includes('/mlx/') || 
+        modelIdOrPath.includes('file://') ||
+        modelIdOrPath.startsWith('lmstudio-community_') ||
+        modelIdOrPath.includes('_')) {
+      if (modelIdOrPath.includes('file://') || modelIdOrPath.includes('/')) {
+        const parts = modelIdOrPath.split('/');
+        const lastPart = parts[parts.length - 1] || parts[parts.length - 2];
+        modelId = lastPart;
+      }
+      
+      modelId = modelId.replace(/_/g, '/');
       console.log('mlx_extracted_model_id', { path: modelIdOrPath, modelId });
     }
 
