@@ -192,15 +192,33 @@ class ChatManager {
     try {
       await this.ensureInitialized();
 
-      if (!this.currentChatId) return false;
+      console.log('mlx_chatmanager_add_start', {
+        currentChatId: this.currentChatId,
+        role: message.role,
+        contentLength: message.content.length
+      });
+
+      if (!this.currentChatId) {
+        console.log('mlx_chatmanager_no_current_chat');
+        return false;
+      }
 
       const chat = this.getChatById(this.currentChatId);
-      if (!chat) return false;
+      if (!chat) {
+        console.log('mlx_chatmanager_chat_not_found', { currentChatId: this.currentChatId });
+        return false;
+      }
 
       const newMessage: ChatMessage = {
         ...message,
         id: generateRandomId(),
       };
+
+      console.log('mlx_chatmanager_message_created', { 
+        messageId: newMessage.id, 
+        role: newMessage.role,
+        contentPreview: newMessage.content.substring(0, 100)
+      });
 
       chat.messages.push(newMessage);
       chat.timestamp = Date.now();
@@ -214,9 +232,11 @@ class ChatManager {
       }
 
       await this.saveChat(chat);
+      console.log('mlx_chatmanager_add_complete', { messageId: newMessage.id, totalMessages: chat.messages.length });
       this.notifyListeners();
       return true;
     } catch (error) {
+      console.log('mlx_chatmanager_add_error', error instanceof Error ? error.message : 'unknown');
       return false;
     }
   }

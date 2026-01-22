@@ -112,21 +112,33 @@ class MlxManager implements InferenceManager {
   }
 
   async gen(messages: Msg[], opts?: GenOpts) {
+    console.log('mlx_gen_start', { loaded: this.state.loaded, modelId: this.state.modelId, messageCount: messages.length });
+    
     if (!this.state.loaded) {
+      console.log('mlx_gen_error_not_ready');
       throw new Error('engine_not_ready');
     }
     
     const lastMessage = messages[messages.length - 1];
     const prompt = typeof lastMessage.content === 'string' ? lastMessage.content : '';
+    console.log('mlx_gen_prompt', { promptLength: prompt.length, role: lastMessage.role });
     
     let full = '';
+    let tokenCount = 0;
     await LLM.stream(prompt, token => {
       full += token;
+      tokenCount++;
+      console.log('mlx_token_received', { tokenCount, tokenLength: token.length });
       if (opts?.onToken) {
-        opts.onToken(token);
+        const continueStreaming = opts.onToken(token);
+        console.log('mlx_token_callback_result', { continueStreaming });
+        if (continueStreaming === false) {
+          console.log('mlx_stream_cancelled_by_callback');
+        }
       }
     });
     
+    console.log('mlx_gen_complete', { responseLength: full.length, tokenCount });
     return full.trim();
   }
 
@@ -153,6 +165,7 @@ class MlxManager implements InferenceManager {
   }
 
   ready() {
+    console.log('mlx_ready_check', { loaded: this.state.loaded, modelId: this.state.modelId });
     return this.state.loaded;
   }
 }

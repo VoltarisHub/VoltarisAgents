@@ -294,10 +294,22 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   }, []);
 
   const handleSend = async (text: string) => {
+    console.log('mlx_homescreen_handleSend_ENTERED', { text: text.substring(0, 50) });
     const messageText = text.trim();
-    if (!messageText) return;
+    if (!messageText) {
+      console.log('mlx_homescreen_empty_message');
+      return;
+    }
     
+    console.log('mlx_homescreen_send_start', {
+      messageLength: messageText.length,
+      modelPath: llamaManager.getModelPath(),
+      activeProvider,
+      engine: engineService.engine
+    });
+
     if (!llamaManager.getModelPath() && !activeProvider) {
+      console.log('mlx_homescreen_no_model', { modelPath: llamaManager.getModelPath(), activeProvider });
       setShouldOpenModelSelector(true);
       return;
     }
@@ -314,8 +326,10 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         role: 'user',
       };
       
+      console.log('mlx_homescreen_adding_message', { content: messageText.substring(0, 100) });
       const success = await chatManager.addMessage(userMessage);
       if (!success) {
+        console.log('mlx_homescreen_add_message_failed');
         showDialog(
           'Error',
           'Failed to add message to chat',
@@ -324,8 +338,12 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         return;
       }
       
+      console.log('mlx_homescreen_message_added', { success });
+      console.log('mlx_homescreen_process_start');
       await processMessage();
+      console.log('mlx_homescreen_process_complete');
     } catch (error) {
+      console.log('mlx_homescreen_send_error', error instanceof Error ? error.message : 'unknown');
       showDialog(
         'Error',
         'Failed to send message',
@@ -549,15 +567,32 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     const currentChat = chatManager.getCurrentChat();
     if (!currentChat) return;
 
+    console.log('mlx_process_message_start', {
+      chatId: currentChat.id,
+      messageCount: currentChat.messages.length,
+      activeProvider,
+      engine: engineService.engine
+    });
+
     try {
       await stopGenerationIfRunning();
       const settings = await getEffectiveSettings();
       
+      console.log('mlx_process_calling_service', { 
+        activeProvider, 
+        settings: { 
+          temperature: settings.temperature, 
+          maxTokens: settings.maxTokens 
+        } 
+      });
+
       await messageProcessingService.processMessage(
         activeProvider,
         settings
       );
+      console.log('mlx_process_message_complete');
     } catch (error) {
+      console.log('mlx_process_message_error', error instanceof Error ? error.message : 'unknown');
       showDialog(
         'Error',
         'Failed to generate response',

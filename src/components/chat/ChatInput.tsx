@@ -420,7 +420,11 @@ export default function ChatInput({
     }
 
     const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
-    if (!isOnlineModel && (!engineService.mgr().ready() || isModelLoading)) {
+    const engineReady = engineService.mgr().ready();
+    console.log('chat_input_send_check', { isOnlineModel, engineReady, isModelLoading, selectedModelPath });
+    
+    if (!isOnlineModel && (!engineReady || isModelLoading)) {
+      console.log('chat_input_send_blocked', 'model not ready');
       showDialog(
         'Model Not Ready',
         'Please wait for the local model to finish loading before sending a message.'
@@ -428,7 +432,14 @@ export default function ChatInput({
       return;
     }
     
-    onSend(text);
+    console.log('chat_input_sending_message', { textLength: text.length });
+    console.log('chat_input_calling_onSend', { text: text.substring(0, 50), onSendType: typeof onSend });
+    try {
+      onSend(text);
+      console.log('chat_input_onSend_returned');
+    } catch (error) {
+      console.log('chat_input_onSend_error', error instanceof Error ? error.message : error);
+    }
     setText('');
     setInputHeight(52);
     setShowAttachmentMenu(false);

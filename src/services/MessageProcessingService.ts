@@ -626,6 +626,13 @@ export class MessageProcessingService {
     _updateCounter: number,
     skipRag: boolean
   ): Promise<void> {
+    console.log('mlx_process_local_start', {
+      messageId,
+      messageCount: processedMessages.length,
+      skipRag,
+      engineReady: engineService.mgr().ready()
+    });
+
     let tokenCount = 0;
     let fullResponse = '';
     let thinking = '';
@@ -634,12 +641,21 @@ export class MessageProcessingService {
     let updateCounter = 0;
 
     const streamCallback = (token: string) => {
+      console.log('mlx_stream_callback_invoked', { 
+        tokenLength: token.length, 
+        currentResponseLength: fullResponse.length,
+        tokenCount,
+        cancelled: this.cancelGenerationRef.current
+      });
+
       if (this.cancelGenerationRef.current) {
+        console.log('mlx_stream_callback_cancelled');
         return false;
       }
 
       if (firstTokenTime === null && !isThinking && token.trim().length > 0 && !token.includes('<think>') && !token.includes('</think>')) {
         firstTokenTime = Date.now() - startTime;
+        console.log('mlx_first_token_time', firstTokenTime);
       }
 
       if (token.includes('<think>')) {
@@ -760,6 +776,12 @@ export class MessageProcessingService {
     }
 
     if (!usedRAG) {
+      console.log('mlx_direct_gen_start', {
+        messageId,
+        messageCount: baseMessages.length,
+        engine: engineService.engine,
+        engineReady: engineService.mgr().ready()
+      });
       console.log('local_no_rag_messages', JSON.stringify(baseMessages.map(m => ({ 
         role: m.role, 
         contentLength: m.content.length,
@@ -772,6 +794,11 @@ export class MessageProcessingService {
           settings
         }
       );
+      console.log('mlx_direct_gen_complete', {
+        messageId,
+        tokenCount,
+        responseLength: fullResponse.length
+      });
     }
 
     if (!this.cancelGenerationRef.current) {
@@ -792,6 +819,11 @@ export class MessageProcessingService {
           avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined
         }
       );
+      console.log('mlx_update_message_complete', {
+        messageId,
+        responseLength: fullResponse.length,
+        tokenCount
+      });
     }
   }
 
