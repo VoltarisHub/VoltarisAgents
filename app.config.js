@@ -121,6 +121,7 @@ export default {
     },
     plugins: [
       "expo-font",
+      "llama.rn",
       "expo-web-browser",
       "expo-asset",
       "expo-background-task",
