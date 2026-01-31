@@ -28,8 +28,11 @@ import { initClaudeService } from './src/services/ClaudeInitializer';
 import { PaperProvider } from 'react-native-paper';
 import { DialogProvider } from './src/context/DialogContext';
 import { ShowDialog } from './src/components/ShowDialog';
+import { initializeBindings } from './src/utils/llamaBinding';
 
 SplashScreen.preventAutoHideAsync();
+
+initializeBindings().catch(() => {});
 
 const initializeServices = async () => {
   try {
