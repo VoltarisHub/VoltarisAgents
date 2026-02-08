@@ -53,5 +53,6 @@
     </activity>
     <activity android:name="com.google.mlkit.vision.codescanner.internal.GmsBarcodeScanningDelegateActivity" tools:replace="android:screenOrientation" android:screenOrientation="unspecified"/>
     <uses-native-library android:name="libOpenCL.so" android:required="false"/>
+    <uses-native-library android:name="libcdsprpc.so" android:required="false"/>
   </application>
 </manifest>

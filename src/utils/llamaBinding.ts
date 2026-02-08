@@ -1,4 +1,4 @@
-import { installJsi } from 'llama.rn';
+import { installJsi, setContextLimit } from 'llama.rn';
 
 const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
@@ -7,6 +7,7 @@ export const initializeBindings = async (retries = 3, delayMs = 60): Promise<voi
   for (let i = 0; i < retries; i += 1) {
     try {
       await installJsi();
+      await setContextLimit(2);
       return;
     } catch (error) {
       lastError = error;

@@ -14,7 +14,6 @@ export default {
     splash: {
       image: "./assets/splash.png",
       resizeMode: "cover",
-      
       backgroundColor: "#660880"
     },
     updates: {
@@ -121,7 +120,6 @@ export default {
     },
     plugins: [
       "expo-font",
-      "llama.rn",
       "expo-web-browser",
       "expo-asset",
       "expo-background-task",

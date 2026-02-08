@@ -35,6 +35,7 @@ export const LLAMA_INIT_CONFIG = {
   use_mlock: true,
   n_ctx: 6144,
   n_batch: 512,
+  n_parallel: 1,
   n_threads: Platform.OS === 'ios' ? 6 : 4,
   embedding: true,
   ctx_shift: false,

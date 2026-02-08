@@ -1,5 +1,14 @@
-import { initLlama, loadLlamaModelInfo, type LlamaContext, type EmbeddingParams } from 'llama.rn';
+import {
+  initLlama,
+  loadLlamaModelInfo,
+  getBackendDevicesInfo,
+  releaseAllLlama,
+  type LlamaContext,
+  type EmbeddingParams,
+  type NativeBackendDeviceInfo,
+} from 'llama.rn';
 import { Platform, NativeModules } from 'react-native';
+import * as FileSystem from 'expo-file-system';
 import EventEmitter from 'eventemitter3';
 import { ModelSettings } from '../services/ModelSettingsService';
 import { 
@@ -30,6 +39,7 @@ const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
 class LlamaManager {
   private context: LlamaContext | null = null;
   private modelPath: string | null = null;
+  private backendDevices: NativeBackendDeviceInfo[] = [];
   private events = new EventEmitter<LlamaManagerEvents>();
   private isCancelled: boolean = false;
   private isUnloading: boolean = false;
@@ -55,6 +65,25 @@ class LlamaManager {
           finalModelPath = finalModelPath.replace('file://', '');
         }
       }
+
+      const modelInfo = await FileSystem.getInfoAsync(finalModelPath);
+      if (!modelInfo.exists) {
+        throw new Error('model_file_missing');
+      }
+
+      const backendDevices = await getBackendDevicesInfo().catch(() => []);
+      this.backendDevices = backendDevices;
+      const hasGpuDevice = backendDevices.some((device) => {
+        const type = device.type ? device.type.toLowerCase() : '';
+        const backend = device.backend ? device.backend.toLowerCase() : '';
+        return (
+          type.includes('gpu') ||
+          type.includes('igpu') ||
+          backend.includes('metal') ||
+          backend.includes('opencl') ||
+          backend.includes('cuda')
+        );
+      });
 
       if (this.context) {
         const contextToRelease = this.context;
@@ -97,6 +126,10 @@ class LlamaManager {
         gpuLayerCount =
           gpuSettings.enabled && gpuSupport.isSupported ? gpuSettings.layers : 0;
       } catch (error) {
+        gpuLayerCount = 0;
+      }
+
+      if (!hasGpuDevice) {
         gpuLayerCount = 0;
       }
 
@@ -541,7 +574,11 @@ class LlamaManager {
       })
     );
     
-    Promise.all(releasePromises).catch(() => {});
+    await Promise.all(releasePromises).catch(() => {});
+    try {
+      await releaseAllLlama();
+    } catch (error) {
+    }
   }
 
   emergencyCleanup() {
