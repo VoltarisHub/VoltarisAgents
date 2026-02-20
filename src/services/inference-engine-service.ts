@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { EngineId, InferenceManager } from '../managers/inference-manager';
 import { llamaAdapter } from '../managers/llama-manager';
 import { mlxManager } from '../managers/mlx-manager';
@@ -9,7 +10,7 @@ const keyEnabled = 'inference_engine_enabled';
 
 class EngineService {
   private engine: EngineId = 'llama';
-  private enabled: Record<EngineId, boolean> = { llama: true, mlx: true };
+  private enabled: Record<EngineId, boolean> = { llama: true, mlx: Platform.OS === 'ios' };
   private activeModelPath: string | null = null;
   private map: Record<EngineId, InferenceManager> = {
     llama: llamaAdapter,
@@ -23,7 +24,11 @@ class EngineService {
     ]);
 
     if (storedActive === 'mlx' || storedActive === 'llama') {
-      this.engine = storedActive;
+      if (storedActive === 'mlx' && Platform.OS === 'android') {
+        this.engine = 'llama';
+      } else {
+        this.engine = storedActive;
+      }
     }
 
     if (storedEnabled) {
@@ -31,7 +36,7 @@ class EngineService {
         const parsed = JSON.parse(storedEnabled) as Record<EngineId, boolean>;
         this.enabled = {
           llama: parsed.llama !== false,
-          mlx: parsed.mlx !== false,
+          mlx: Platform.OS === 'ios' ? (parsed.mlx !== false) : false,
         };
       } catch {
       }

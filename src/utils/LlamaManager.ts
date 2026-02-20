@@ -55,6 +55,7 @@ class LlamaManager {
 
   async initializeModel(modelPath: string, mmProjectorPath?: string) {
     try {
+      console.log('init_model_raw_path', { modelPath, mmProjectorPath });
       let finalModelPath = modelPath;
       
       if (finalModelPath.startsWith('file://')) {
@@ -65,14 +66,41 @@ class LlamaManager {
           finalModelPath = finalModelPath.replace('file://', '');
         }
       }
+      console.log('init_model_stripped_path', finalModelPath);
 
-      const modelInfo = await FileSystem.getInfoAsync(finalModelPath);
+      try {
+        const decodedPath = decodeURI(finalModelPath);
+        console.log('init_model_decoded_path', decodedPath);
+        finalModelPath = decodedPath;
+      } catch (decodeError) {
+        console.log('init_model_decode_failed', decodeError);
+      }
+
+      const fsPath = modelPath.startsWith('file://') || modelPath.startsWith('content://')
+        ? modelPath
+        : modelPath.startsWith('/')
+          ? `file://${modelPath}`
+          : modelPath;
+      console.log('init_model_fs_path', fsPath);
+      
+      const modelInfo = await FileSystem.getInfoAsync(fsPath, { size: true });
+      const modelSize = (modelInfo as any).size || 0;
+      console.log('init_model_file_info', { exists: modelInfo.exists, size: modelSize });
+      
       if (!modelInfo.exists) {
         throw new Error('model_file_missing');
       }
+      if (modelSize <= 0) {
+        throw new Error('model_file_empty');
+      }
 
-      const backendDevices = await getBackendDevicesInfo().catch(() => []);
+      const backendDevices = await getBackendDevicesInfo().catch((err) => {
+        console.log('init_model_backend_query_failed', err);
+        return [];
+      });
       this.backendDevices = backendDevices;
+      console.log('init_model_backend_devices', backendDevices);
+      
       const hasGpuDevice = backendDevices.some((device) => {
         const type = device.type ? device.type.toLowerCase() : '';
         const backend = device.backend ? device.backend.toLowerCase() : '';
@@ -84,6 +112,7 @@ class LlamaManager {
           backend.includes('cuda')
         );
       });
+      console.log('init_model_has_gpu', hasGpuDevice);
 
       if (this.context) {
         const contextToRelease = this.context;
@@ -123,34 +152,64 @@ class LlamaManager {
           gpuSettingsService.loadSettings(),
           checkGpuSupport().catch((): GpuSupport => ({ isSupported: false, reason: 'unknown' })),
         ]);
+        console.log('init_model_gpu_settings', { gpuSettings, gpuSupport });
         gpuLayerCount =
           gpuSettings.enabled && gpuSupport.isSupported ? gpuSettings.layers : 0;
       } catch (error) {
+        console.log('init_model_gpu_settings_failed', error);
         gpuLayerCount = 0;
       }
 
       if (!hasGpuDevice) {
+        console.log('init_model_gpu_disabled_no_device');
         gpuLayerCount = 0;
       }
 
-      this.context = await initLlama({
+      const initParams = {
         model: finalModelPath,
         ...LLAMA_INIT_CONFIG,
         n_gpu_layers: gpuLayerCount,
-      });
+      };
+      console.log('init_model_params', JSON.stringify(initParams, null, 2));
+
+      try {
+        console.log('init_model_calling_native');
+        this.context = await initLlama(initParams);
+        console.log('init_model_native_success');
+      } catch (error) {
+        console.log('init_model_native_failed', error);
+        if (Platform.OS === 'android') {
+          const retryParams = {
+            ...initParams,
+            n_gpu_layers: 0,
+            use_mlock: false,
+            use_mmap: false,
+          };
+          console.log('init_model_android_fallback', JSON.stringify(retryParams, null, 2));
+          this.context = await initLlama(retryParams);
+          console.log('init_model_fallback_success');
+        } else {
+          throw error;
+        }
+      }
 
       if (mmProjectorPath && this.context) {
+        console.log('init_model_multimodal_start', mmProjectorPath);
         const success = await this.multimodalService.initMultimodal(this.context, mmProjectorPath);
+        console.log('init_model_multimodal_result', success);
         
         if (success) {
           const support = await this.context.getMultimodalSupport();
+          console.log('init_model_multimodal_support', support);
         }
       }
 
       this.isCancelled = false;
+      console.log('init_model_complete');
 
       return this.context;
     } catch (error) {
+      console.log('init_model_exception', error);
       this.emergencyCleanup();
       throw new Error(`model_init_failed: ${error}`);
     }
@@ -269,10 +328,23 @@ class LlamaManager {
       throw new Error('Model not initialized');
     }
 
+    console.log('gen_response_start', {
+      messageCount: messages.length,
+      hasOnToken: typeof onToken === 'function',
+      hasCustomSettings: customSettings !== undefined
+    });
+
     let fullResponse = '';
     this.isCancelled = false;
     this.tokenProcessingService.setCancelled(false);
     const settings = customSettings ?? this.settingsManager.getSettings();
+    console.log('gen_response_settings', {
+      maxTokens: settings.maxTokens,
+      temperature: settings.temperature,
+      stopWordsCount: settings.stopWords?.length,
+      drySequenceBreakersCount: settings.drySequenceBreakers?.length,
+      logitBiasCount: settings.logitBias?.length
+    });
     const stop = [...settings.stopWords, '\n', '\\n'];
 
     try {
@@ -311,40 +383,53 @@ class LlamaManager {
         })
       );
 
+      console.log('gen_response_processed_messages', {
+        count: processedMessages.length,
+        roles: processedMessages.map(m => m.role)
+      });
+
       let tokenCount = 0;
 
+      const completionParams = {
+        messages: processedMessages,
+        n_predict: settings.maxTokens,
+        stop,
+        temperature: settings.temperature,
+        top_k: settings.topK,
+        top_p: settings.topP,
+        min_p: settings.minP,
+        jinja: settings.jinja,
+        grammar: settings.grammar || undefined,
+        n_probs: settings.nProbs,
+        penalty_last_n: settings.penaltyLastN,
+        penalty_repeat: settings.penaltyRepeat,
+        penalty_freq: settings.penaltyFreq,
+        penalty_present: settings.penaltyPresent,
+        mirostat: settings.mirostat,
+        mirostat_tau: settings.mirostatTau,
+        mirostat_eta: settings.mirostatEta,
+        dry_multiplier: settings.dryMultiplier,
+        dry_base: settings.dryBase,
+        dry_allowed_length: settings.dryAllowedLength,
+        dry_penalty_last_n: settings.dryPenaltyLastN,
+        dry_sequence_breakers: settings.drySequenceBreakers,
+        ignore_eos: settings.ignoreEos,
+        logit_bias: settings.logitBias.length > 0 ? settings.logitBias : undefined,
+        seed: settings.seed,
+        xtc_probability: settings.xtcProbability,
+        xtc_threshold: settings.xtcThreshold,
+        typical_p: settings.typicalP,
+        enable_thinking: settings.enableThinking,
+      };
+
+      console.log('gen_response_calling_completion', {
+        messagesCount: completionParams.messages.length,
+        n_predict: completionParams.n_predict,
+        temperature: completionParams.temperature
+      });
+
       await this.context.completion(
-        {
-          messages: processedMessages,
-          n_predict: settings.maxTokens,
-          stop,
-          temperature: settings.temperature,
-          top_k: settings.topK,
-          top_p: settings.topP,
-          min_p: settings.minP,
-          jinja: settings.jinja,
-          grammar: settings.grammar || undefined,
-          n_probs: settings.nProbs,
-          penalty_last_n: settings.penaltyLastN,
-          penalty_repeat: settings.penaltyRepeat,
-          penalty_freq: settings.penaltyFreq,
-          penalty_present: settings.penaltyPresent,
-          mirostat: settings.mirostat,
-          mirostat_tau: settings.mirostatTau,
-          mirostat_eta: settings.mirostatEta,
-          dry_multiplier: settings.dryMultiplier,
-          dry_base: settings.dryBase,
-          dry_allowed_length: settings.dryAllowedLength,
-          dry_penalty_last_n: settings.dryPenaltyLastN,
-          dry_sequence_breakers: settings.drySequenceBreakers,
-          ignore_eos: settings.ignoreEos,
-          logit_bias: settings.logitBias.length > 0 ? settings.logitBias : undefined,
-          seed: settings.seed,
-          xtc_probability: settings.xtcProbability,
-          xtc_threshold: settings.xtcThreshold,
-          typical_p: settings.typicalP,
-          enable_thinking: settings.enableThinking,
-        },
+        completionParams,
         (data) => {
           if (this.isCancelled) {
             return false;
@@ -365,11 +450,14 @@ class LlamaManager {
         }
       );
 
+      console.log('gen_response_completion_done', { tokenCount, responseLength: fullResponse.length });
+
       await this.tokenProcessingService.startTokenProcessing(onToken);
       await this.tokenProcessingService.waitForTokenQueueCompletion();
 
       return fullResponse.trim();
     } catch (error) {
+      console.log('gen_response_error', error);
       throw error;
     } finally {
       this.tokenProcessingService.clearTokenQueue();
