@@ -73,22 +73,27 @@ export const getConnectionBadgeConfig = (provider: string | null, currentTheme: 
 };
 
 export const isMLXModel = (model: StoredModel): boolean => {
+  if (model.modelFormat === 'mlx') return true;
+  if (model.modelFormat === 'gguf') return false;
+
   const path = model.path.toLowerCase();
   const name = model.name.toLowerCase();
-  
+
+  if (model.isDirectory) return true;
+
   if (path.includes('/huggingface/models/') || path.includes('mlx-community')) {
     return true;
   }
-  
+
   if (name.endsWith('.safetensors') || path.endsWith('.safetensors')) {
     return true;
   }
-  
-  if ((name.includes('mlx') || path.includes('mlx')) && 
+
+  if ((name.includes('mlx') || path.includes('mlx')) &&
       (name.endsWith('.json') || path.endsWith('.json'))) {
     return true;
   }
-  
+
   return false;
 };
 

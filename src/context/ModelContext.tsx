@@ -54,9 +54,9 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setIsModelLoading(true);
     
     try {
-      const pathLower = modelPath.toLowerCase();
-      const isGguf = pathLower.endsWith('.gguf');
-      const engine = engineService.getEngineForModel(modelPath);
+      const storedModels = await modelDownloader.getStoredModels();
+      const storedEntry = storedModels.find(m => m.path === modelPath);
+      const engine = engineService.getEngineForModel(modelPath, storedEntry?.modelFormat);
       const enabled = engineService.getEnabled();
 
       if (!enabled[engine]) {
@@ -90,7 +90,7 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         mmProjectorPath = undefined;
       }
 
-      await engineService.initModel(modelPath, mmProjectorPath);
+      await engineService.initModel(modelPath, mmProjectorPath, storedEntry?.modelFormat);
       
       setSelectedModelPath(modelPath);
       updateProjectorState();

@@ -71,13 +71,15 @@ class EngineService {
     return this.activeModelPath;
   }
 
-  getEngineForModel(modelPath: string): EngineId {
+  getEngineForModel(modelPath: string, modelFormat?: string): EngineId {
+    if (modelFormat === 'gguf') return 'llama';
+    if (modelFormat === 'mlx') return 'mlx';
     const lower = modelPath.toLowerCase();
     return lower.endsWith('.gguf') ? 'llama' : 'mlx';
   }
 
-  async initModel(modelPath: string, projectorPath?: string) {
-    const engine = this.getEngineForModel(modelPath);
+  async initModel(modelPath: string, projectorPath?: string, modelFormat?: string) {
+    const engine = this.getEngineForModel(modelPath, modelFormat);
     if (!this.isEnabled(engine)) {
       throw new Error('engine_disabled');
     }

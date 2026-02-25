@@ -243,7 +243,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         const pathLower = modelPath.toLowerCase();
         const nameLower = (storedModel.name || '').toLowerCase();
 
-        const engine = engineService.getEngineForModel(modelPath);
+        const engine = engineService.getEngineForModel(modelPath, storedModel.modelFormat);
         const enabled = engineService.getEnabled();
 
         if (!enabled[engine]) {

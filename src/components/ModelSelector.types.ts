@@ -9,6 +9,8 @@ export interface StoredModel {
   modified: string;
   isExternal?: boolean;
   originalPath?: string;
+  modelFormat?: string;
+  isDirectory?: boolean;
 }
 
 export interface OnlineModel {
