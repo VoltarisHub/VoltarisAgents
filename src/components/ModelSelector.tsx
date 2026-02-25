@@ -771,7 +771,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                         onPress={() => setShowInitPanel(v => !v)}
                         activeOpacity={0.7}
                       >
-                        <Text style={[styles.initPanelToggleLabel, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>Advanced Settings</Text>
+                        <Text style={[styles.initPanelToggleLabel, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>Local Model Settings</Text>
                         <MaterialCommunityIcons
                           name={showInitPanel ? 'chevron-up' : 'chevron-down'}
                           size={20}
@@ -783,7 +783,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                         <>
                           <View style={styles.initSliderItem}>
                             <View style={styles.initSliderHeader}>
-                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>Context (n_ctx)</Text>
+                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>Context Window</Text>
                               <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>{initOverrides.n_ctx}</Text>
                             </View>
                             <Slider
@@ -799,7 +799,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
                           <View style={styles.initSliderItem}>
                             <View style={styles.initSliderHeader}>
-                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>Batch (n_batch)</Text>
+                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>Batch Size</Text>
                               <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>{initOverrides.n_batch}</Text>
                             </View>
                             <Slider
@@ -815,7 +815,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
                           <View style={styles.initSliderItem}>
                             <View style={styles.initSliderHeader}>
-                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>Parallel (n_parallel)</Text>
+                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>Parallel Sequences</Text>
                               <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>{initOverrides.n_parallel}</Text>
                             </View>
                             <Slider
@@ -831,7 +831,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
                           <View style={styles.initSliderItem}>
                             <View style={styles.initSliderHeader}>
-                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>Threads (n_threads)</Text>
+                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>CPU Threads</Text>
                               <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>{initOverrides.n_threads}</Text>
                             </View>
                             <Slider
@@ -847,7 +847,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
                           <View style={styles.initSliderItem}>
                             <View style={styles.initSliderHeader}>
-                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>GPU Layers (n_gpu_layers)</Text>
+                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>GPU Offload Layers</Text>
                               <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>{initOverrides.n_gpu_layers}</Text>
                             </View>
                             <Slider
