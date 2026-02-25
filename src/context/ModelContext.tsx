@@ -98,7 +98,6 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const modelName = isMlxModel ? modelPath : (modelPath.split('/').pop() || 'Model');
       const engineLabel = engine === 'mlx' ? ' (MLX)' : ' (Llama.cpp)';
       const multimodalText = mmProjectorPath ? ' (Multimodal)' : '';
-      showSnackbar(`${modelName}${engineLabel}${multimodalText} loaded successfully`);
 
       return true;
     } catch (error) {
