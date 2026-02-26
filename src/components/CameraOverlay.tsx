@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   ScrollView,
+  Image,
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import Slider from '@react-native-community/slider';
@@ -61,6 +62,16 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken, useRag =
   const isDark = currentTheme === 'dark';
   const insets = useSafeAreaInsets();
 
+  const getImgSize = (uri: string): Promise<{ width: number; height: number }> => {
+    return new Promise((resolve, reject) => {
+      Image.getSize(
+        uri,
+        (width, height) => resolve({ width, height }),
+        error => reject(error)
+      );
+    });
+  };
+
 
   const toggleCameraFacing = () => {
     setFacing(current => (current === 'back' ? 'front' : 'back'));
@@ -94,11 +105,21 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken, useRag =
       setIsProcessing(true);
       setProcessingProgress('Optimizing image...');
 
+      const { width, height } = await getImgSize(capturedPhotoUri);
+      const sizePct = Math.max(0.01, Math.min(1, imgCompress));
+      const sizeRatio = (sizePct - 0.01) / 0.99;
+      const targetHeight = Math.round(100 + Math.max(0, height - 100) * sizeRatio);
+      const targetWidth = Math.min(width, Math.max(1, Math.round((width / height) * targetHeight)));
+      const quality = 0.2 + sizePct * 0.8;
+      const actions = (targetWidth !== width || targetHeight !== height)
+        ? [{ resize: { width: targetWidth, height: targetHeight } }]
+        : [];
+
       const processed = await manipulateAsync(
         capturedPhotoUri,
-        [],
+        actions,
         {
-          compress: imgCompress,
+          compress: quality,
           format: SaveFormat.JPEG,
         }
       );
@@ -278,13 +299,13 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken, useRag =
 
                 <View style={styles.compWrap}>
                   <View style={styles.compHead}>
-                    <Text style={[styles.compLabel, { color: themeColors.text }]}>Image Quality</Text>
+                    <Text style={[styles.compLabel, { color: themeColors.text }]}>Image Size + Quality</Text>
                     <Text style={[styles.compValue, { color: themeColors.secondaryText }]}>{Math.round(imgCompress * 100)}%</Text>
                   </View>
                   <Slider
-                    minimumValue={0.1}
+                    minimumValue={0.01}
                     maximumValue={1}
-                    step={0.05}
+                    step={0.01}
                     value={imgCompress}
                     onValueChange={setImgCompress}
                     onSlidingStart={() => setScrollEnabled(false)}
