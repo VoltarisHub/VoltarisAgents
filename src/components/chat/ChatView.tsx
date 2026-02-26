@@ -24,6 +24,7 @@ import chatManager from '../../utils/ChatManager';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
+import * as MediaLibrary from 'expo-media-library';
 
 export type Message = {
   id: string;
@@ -99,6 +100,7 @@ export default function ChatView({
   
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [isImageViewerVisible, setIsImageViewerVisible] = useState(false);
+  const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
 
   const openReportDialog = useCallback((messageContent: string, provider: string) => {
     navigation.navigate('Report', {
@@ -116,6 +118,30 @@ export default function ChatView({
     setIsImageViewerVisible(false);
     setFullScreenImage(null);
   }, []);
+
+  const saveImg = useCallback(async () => {
+    if (!fullScreenImage) {
+      return;
+    }
+
+    try {
+      let granted = mediaPermission?.granted;
+      if (!granted) {
+        const permissionResult = await requestMediaPermission();
+        granted = permissionResult?.granted;
+      }
+
+      if (!granted) {
+        Alert.alert('Permission Required', 'Allow photo library access to save images.');
+        return;
+      }
+
+      await MediaLibrary.saveToLibraryAsync(fullScreenImage);
+      Alert.alert('Saved', 'Image saved to gallery.');
+    } catch (e) {
+      Alert.alert('Save Failed', 'Unable to save image to gallery.');
+    }
+  }, [fullScreenImage, mediaPermission?.granted, requestMediaPermission]);
 
   const startEditing = useCallback((messageId: string, currentContent: string) => {
     let contentToEdit = currentContent;
@@ -832,6 +858,16 @@ export default function ChatView({
                   color="#fff" 
                 />
               </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.imageViewerButton, styles.saveButton]}
+                onPress={saveImg}
+              >
+                <MaterialCommunityIcons
+                  name="content-save-outline"
+                  size={22}
+                  color="#fff"
+                />
+              </TouchableOpacity>
             </View>
             
             {fullScreenImage ? (
@@ -1134,6 +1170,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   closeButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  saveButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   fullScreenImage: {
