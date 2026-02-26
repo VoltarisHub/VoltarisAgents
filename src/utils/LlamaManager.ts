@@ -149,6 +149,81 @@ class LlamaManager {
     await this.logInitMemory(stage, modelSize);
   }
 
+  private isContextSpaceError(error: unknown): boolean {
+    const payload = this.serializeError(error);
+    const text = JSON.stringify(payload).toLowerCase();
+    return text.includes('not enough context space') ||
+      (text.includes('context') && text.includes('space')) ||
+      text.includes('context window') ||
+      text.includes('prompt is too long');
+  }
+
+  private toTextOnlyContent(content: any): string {
+    if (typeof content === 'string') {
+      return content;
+    }
+
+    if (Array.isArray(content)) {
+      const textParts = content
+        .filter((part) => part?.type === 'text' && typeof part?.text === 'string')
+        .map((part) => part.text);
+      if (textParts.length > 0) {
+        return textParts.join('\n');
+      }
+    }
+
+    return '';
+  }
+
+  private compactMessagesForContext(messages: Array<{ role: string; content: any }>): Array<{ role: string; content: any }> {
+    const systemMessages = messages.filter((message) => message.role === 'system');
+    const nonSystemMessages = messages.filter((message) => message.role !== 'system');
+
+    if (nonSystemMessages.length === 0) {
+      return messages;
+    }
+
+    const latestUserIndex = nonSystemMessages.map((message) => message.role).lastIndexOf('user');
+    if (latestUserIndex < 0) {
+      return messages;
+    }
+
+    const latestUserMessage = nonSystemMessages[latestUserIndex];
+    const previousAssistantMessage = latestUserIndex > 0 && nonSystemMessages[latestUserIndex - 1]?.role === 'assistant'
+      ? nonSystemMessages[latestUserIndex - 1]
+      : null;
+    const previousUserMessage = latestUserIndex > 1 && nonSystemMessages[latestUserIndex - 2]?.role === 'user'
+      ? nonSystemMessages[latestUserIndex - 2]
+      : null;
+
+    const compactMessages: Array<{ role: string; content: any }> = [...systemMessages];
+
+    if (previousUserMessage && previousAssistantMessage) {
+      compactMessages.push({
+        role: previousUserMessage.role,
+        content: this.toTextOnlyContent(previousUserMessage.content),
+      });
+      compactMessages.push({
+        role: previousAssistantMessage.role,
+        content: this.toTextOnlyContent(previousAssistantMessage.content),
+      });
+    }
+
+    compactMessages.push(latestUserMessage);
+    return compactMessages;
+  }
+
+  private minimalMessagesForContext(messages: Array<{ role: string; content: any }>): Array<{ role: string; content: any }> {
+    const systemMessages = messages.filter((message) => message.role === 'system');
+    const nonSystemMessages = messages.filter((message) => message.role !== 'system');
+    if (nonSystemMessages.length === 0) {
+      return systemMessages;
+    }
+    const latestUserIndex = nonSystemMessages.map((message) => message.role).lastIndexOf('user');
+    const latestMessage = latestUserIndex >= 0 ? nonSystemMessages[latestUserIndex] : nonSystemMessages[nonSystemMessages.length - 1];
+    return [...systemMessages, latestMessage];
+  }
+
   constructor() {
     this.settingsManager.loadSettings().catch(error => {
     });
@@ -548,9 +623,19 @@ class LlamaManager {
         roles: processedMessages.map(m => m.role)
       });
 
+      const mediaStats = processedMessages.map((message, index) => {
+        if (!Array.isArray(message.content)) {
+          return { index, role: message.role, media: 0 };
+        }
+        const mediaCount = message.content.filter((item: any) => item.type === 'image_url' || item.type === 'input_audio').length;
+        return { index, role: message.role, media: mediaCount };
+      });
+      const totalMedia = mediaStats.reduce((sum, item) => sum + item.media, 0);
+      console.log('gen_response_media_stats', { totalMedia, mediaStats });
+
       let tokenCount = 0;
 
-      const completionParams = {
+      const baseCompletionParams = {
         messages: processedMessages,
         n_predict: settings.maxTokens,
         stop,
@@ -582,33 +667,75 @@ class LlamaManager {
         enable_thinking: settings.enableThinking,
       };
 
-      console.log('gen_response_calling_completion', {
-        messagesCount: completionParams.messages.length,
-        n_predict: completionParams.n_predict,
-        temperature: completionParams.temperature
-      });
+      const runCompletion = async (messagesForCompletion: Array<{ role: string; content: any }>, stage: 'primary' | 'compact-retry' | 'minimal-retry') => {
+        fullResponse = '';
+        tokenCount = 0;
+        this.tokenProcessingService.clearTokenQueue();
 
-      await this.context.completion(
-        completionParams,
-        (data) => {
-          if (this.isCancelled) {
-            return false;
+        const completionParams = {
+          ...baseCompletionParams,
+          messages: messagesForCompletion,
+        };
+
+        console.log('gen_response_calling_completion', {
+          stage,
+          messagesCount: completionParams.messages.length,
+          n_predict: completionParams.n_predict,
+          temperature: completionParams.temperature,
+        });
+
+        await this.context!.completion(
+          completionParams,
+          (data) => {
+            if (this.isCancelled) {
+              return false;
+            }
+
+            this.tokenProcessingService.queueToken(data.token);
+            fullResponse += data.token;
+            tokenCount += 1;
+
+            void this.tokenProcessingService.startTokenProcessing(onToken);
+
+            if (this.tokenProcessingService.isCancelling()) {
+              this.isCancelled = true;
+              return false;
+            }
+
+            return true;
           }
+        );
+      };
 
-          this.tokenProcessingService.queueToken(data.token);
-          fullResponse += data.token;
-          tokenCount += 1;
-
-          void this.tokenProcessingService.startTokenProcessing(onToken);
-
-          if (this.tokenProcessingService.isCancelling()) {
-            this.isCancelled = true;
-            return false;
-          }
-
-          return true;
+      try {
+        await runCompletion(processedMessages, 'primary');
+      } catch (error) {
+        if (!this.isContextSpaceError(error)) {
+          throw error;
         }
-      );
+
+        const compactMessages = this.compactMessagesForContext(processedMessages);
+        console.log('gen_response_context_retry', {
+          reason: 'not_enough_context_space',
+          originalCount: processedMessages.length,
+          compactCount: compactMessages.length,
+        });
+
+        try {
+          await runCompletion(compactMessages, 'compact-retry');
+        } catch (compactError) {
+          if (!this.isContextSpaceError(compactError)) {
+            throw compactError;
+          }
+
+          const minimalMessages = this.minimalMessagesForContext(processedMessages);
+          console.log('gen_response_context_retry_minimal', {
+            compactCount: compactMessages.length,
+            minimalCount: minimalMessages.length,
+          });
+          await runCompletion(minimalMessages, 'minimal-retry');
+        }
+      }
 
       console.log('gen_response_completion_done', { tokenCount, responseLength: fullResponse.length });
 
@@ -617,7 +744,9 @@ class LlamaManager {
 
       return fullResponse.trim();
     } catch (error) {
-      console.log('gen_response_error', error);
+      console.log('gen_response_error', {
+        error: this.serializeError(error),
+      });
       throw error;
     } finally {
       this.tokenProcessingService.clearTokenQueue();
