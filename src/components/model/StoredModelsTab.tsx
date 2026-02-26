@@ -164,7 +164,16 @@ export const StoredModelsTab: React.FC<StoredModelsTabProps> = ({
   const renderItem = ({ item }: { item: any }) => {
     const isProjectorModel = item.name.toLowerCase().includes('mmproj') ||
                             item.name.toLowerCase().includes('.proj');
-    const isGGUFModel = item.name.toLowerCase().includes('.gguf');
+    const lowerName = item.name.toLowerCase();
+    const lowerPath = item.path.toLowerCase();
+    const isGGUFModel =
+      item.modelFormat === 'gguf' ||
+      lowerName.endsWith('.gguf') ||
+      lowerPath.endsWith('.gguf');
+    const rowName =
+      isGGUFModel && !lowerName.endsWith('.gguf')
+        ? `${item.name}.gguf`
+        : item.name;
     
     if (item.isMLXGroup) {
       const isExpanded = expandedGroups.has(item.groupKey);
@@ -253,7 +262,7 @@ export const StoredModelsTab: React.FC<StoredModelsTabProps> = ({
     return (
       <StoredModelItem
         id={item.path}
-        name={item.name}
+        name={rowName}
         path={item.path}
         size={item.size}
         isProjector={isProjectorModel}
