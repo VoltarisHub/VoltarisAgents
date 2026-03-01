@@ -38,7 +38,7 @@ PODS:
   - DoubleConversion (1.1.6)
   - EASClient (0.14.4):
     - ExpoModulesCore
-  - EXConstants (17.1.7):
+  - EXConstants (17.1.8):
     - ExpoModulesCore
   - EXImageLoader (5.1.0):
     - ExpoModulesCore
@@ -46,7 +46,7 @@ PODS:
   - EXJSONUtils (0.15.0)
   - EXManifests (0.16.6):
     - ExpoModulesCore
-  - Expo (53.0.24):
+  - Expo (53.0.27):
     - DoubleConversion
     - ExpoModulesCore
     - glog
@@ -336,7 +336,7 @@ PODS:
     - ExpoModulesCore
   - ExpoHaptics (14.1.4):
     - ExpoModulesCore
-  - ExpoHead (5.1.7):
+  - ExpoHead (5.1.11):
     - ExpoModulesCore
   - ExpoImageManipulator (13.1.7):
     - EXImageLoader
@@ -396,7 +396,7 @@ PODS:
   - EXTaskManager (13.1.6):
     - ExpoModulesCore
     - UMAppLoader
-  - EXUpdates (0.28.17):
+  - EXUpdates (0.28.18):
     - DoubleConversion
     - EASClient
     - EXManifests
@@ -1990,6 +1990,10 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
+  - react-native-nitro-markdown (0.5.0):
+    - NitroModules
+    - React-Core
+    - React-Fabric
   - react-native-pdf-page-image (0.2.1):
     - RCT-Folly
     - RCTRequired
@@ -2779,6 +2783,7 @@ DEPENDENCIES:
   - react-native-get-random-values (from `../node_modules/react-native-get-random-values`)
   - react-native-in-app-review (from `../node_modules/react-native-in-app-review`)
   - "react-native-menu (from `../node_modules/@react-native-menu/menu`)"
+  - react-native-nitro-markdown (from `../node_modules/react-native-nitro-markdown`)
   - react-native-pdf-page-image (from `../node_modules/react-native-pdf-page-image`)
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
   - "react-native-slider (from `../node_modules/@react-native-community/slider`)"
@@ -3033,6 +3038,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-in-app-review"
   react-native-menu:
     :path: "../node_modules/@react-native-menu/menu"
+  react-native-nitro-markdown:
+    :path: "../node_modules/react-native-nitro-markdown"
   react-native-pdf-page-image:
     :path: "../node_modules/react-native-pdf-page-image"
   react-native-safe-area-context:
@@ -3134,11 +3141,11 @@ SPEC CHECKSUMS:
   CocoaAsyncSocket: 065fd1e645c7abab64f7a6a2007a48038fdc6a99
   DoubleConversion: cb417026b2400c8f53ae97020b2be961b59470cb
   EASClient: fe396f88189ce51edd819abe12df16c99e98bcd2
-  EXConstants: 98bcf0f22b820f9b28f9fee55ff2daededadd2f8
+  EXConstants: d3d551cb154718f5161c4247304e96aa59f6cca7
   EXImageLoader: 4d3d3284141f1a45006cc4d0844061c182daf7ee
   EXJSONUtils: 1d3e4590438c3ee593684186007028a14b3686cd
   EXManifests: 691a779b04e4f2c96da46fb9bef4f86174fefcb5
-  Expo: d68c92f4bee50a21f0f0d7d2481dd6dbbd51e82b
+  Expo: 7e07803ccc34cdf144a0d51cc2684a60628b6593
   expo-dev-client: 9b1e78baf0dd87b005f035d180bbb07c05917fad
   expo-dev-launcher: 35dc0269b5fc1f628abc00e08e5a969e7809eff4
   expo-dev-menu: 0771fa9c5c405e07aa15e55a699b8a4a984ea77a
@@ -3155,7 +3162,7 @@ SPEC CHECKSUMS:
   ExpoFileSystem: 7f92f7be2f5c5ed40a7c9efc8fa30821181d9d63
   ExpoFont: cf508bc2e6b70871e05386d71cab927c8524cc8e
   ExpoHaptics: 0ff6e0d83cd891178a306e548da1450249d54500
-  ExpoHead: 520990db7d4e4a09a9142b2e03bcb08b85b97e0e
+  ExpoHead: cfc12096c9a68cbe25de93a8bfc4781c7689467e
   ExpoImageManipulator: 1e06e7a1e56f454e75d01b7032c1e44963bfc865
   ExpoImagePicker: 0963da31800c906e01c03e25d7c849f16ebf02a2
   ExpoKeepAwake: bf0811570c8da182bfb879169437d4de298376e7
@@ -3172,7 +3179,7 @@ SPEC CHECKSUMS:
   ExpoWebBrowser: dc39a88485f007e61a3dff05d6a75f22ab4a2e92
   EXStructuredHeaders: 32bec6771c2db18c4cd47cecae530d1d06cdf972
   EXTaskManager: 280143f6d8e596f28739d74bf34910300dcbd4ea
-  EXUpdates: 004cca5223d04b5a0702b5712fbd5d9318024d47
+  EXUpdates: 7c4474372c5f02aa6e0854e7a464edb4faac6683
   EXUpdatesInterface: 7ff005b7af94ee63fa452ea7bb95d7a8ff40277a
   fast_float: 06eeec4fe712a76acc9376682e4808b05ce978b6
   FBLazyVector: 07309209b7b914451b8f822544a18e2a0a85afff
@@ -3238,6 +3245,7 @@ SPEC CHECKSUMS:
   react-native-get-random-values: d16467cf726c618e9c7a8c3c39c31faa2244bbba
   react-native-in-app-review: 1516ba69d60d58053b7eb3aaaf8d2a5a74af8b57
   react-native-menu: 9efed55ad478c20b85bbd5c376f15b2cc5e41181
+  react-native-nitro-markdown: 48dde5837e97f35587a2e7d667f4550f08dc1fb4
   react-native-pdf-page-image: c9422de7c75f2de7263a3f5f060af0b48f0b032b
   react-native-safe-area-context: 562163222d999b79a51577eda2ea8ad2c32b4d06
   react-native-slider: 78ccabe016aef7418b1a846b31115b4165c4dde6
