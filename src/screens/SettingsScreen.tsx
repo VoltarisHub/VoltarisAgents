@@ -461,7 +461,13 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       for (const file of files) {
         const filePath = `${directory}/${file}`;
         const fileInfo = await FileSystem.getInfoAsync(filePath, { size: true });
-        if (fileInfo.exists) {
+        if (!fileInfo.exists) {
+          continue;
+        }
+
+        if ((fileInfo as any).isDirectory) {
+          totalSize += await getDirectorySize(filePath);
+        } else {
           totalSize += (fileInfo as any).size || 0;
         }
       }
@@ -543,9 +549,13 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
 
   const clearAllModels = async () => {
     try {
+      const modelsDir = `${FileSystem.documentDirectory}models`;
+      const modelsSize = await getDirectorySize(modelsDir);
+      const modelsSizeText = formatBytes(modelsSize);
+
       showDialog(
         'Clear All Models',
-        'Are you sure you want to delete all models? This action cannot be undone.',
+        `Are you sure you want to delete all models? This action cannot be undone.\n\nStorage to be freed: ${modelsSizeText}`,
         [
           <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
           <Button
@@ -554,7 +564,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
               hideDialog();
               try {
                 setClearingType('models');
-                const modelsDir = `${FileSystem.documentDirectory}models`;
                 await clearDirectory(modelsDir);
                 await modelDownloader.clearAllModels();
                 await modelSettingsService.clearAllSettings();
