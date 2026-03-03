@@ -26,7 +26,7 @@ import SupportSection from '../components/settings/SupportSection';
 import ModelSettingsSection, { type GpuConfig } from '../components/settings/ModelSettingsSection';
 import SystemInfoSection from '../components/settings/SystemInfoSection';
 import StorageSection from '../components/settings/StorageSection';
-import { Dialog, Portal, PaperProvider, Button, Text as PaperText } from 'react-native-paper';
+import { Dialog, Portal, PaperProvider, Button, Text as PaperText, ActivityIndicator as PaperActivityIndicator } from 'react-native-paper';
 import { DEFAULT_SETTINGS } from '../config/llamaConfig';
 import type { ModelSettings as StoredModelSettings } from '../services/ModelSettingsService';
 import { modelSettingsService } from '../services/ModelSettingsService';
@@ -114,13 +114,23 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const [dialogTitle, setDialogTitle] = useState('');
   const [dialogMessage, setDialogMessage] = useState('');
   const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
+  const [dialogLoading, setDialogLoading] = useState(false);
 
-  const hideDialog = () => setDialogVisible(false);
+  const hideDialog = () => {
+    setDialogVisible(false);
+    setDialogLoading(false);
+  };
 
-  const showDialog = (title: string, message: string, actions: React.ReactNode[]) => {
+  const showDialog = (
+    title: string,
+    message: string,
+    actions: React.ReactNode[],
+    loading: boolean = false
+  ) => {
     setDialogTitle(title);
     setDialogMessage(message);
     setDialogActions(actions);
+    setDialogLoading(loading);
     setDialogVisible(true);
   };
 
@@ -548,8 +558,16 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   };
 
   const clearAllModels = async () => {
+    const modelsDir = `${FileSystem.documentDirectory}models`;
+
+    showDialog(
+      '',
+      '',
+      [],
+      true
+    );
+
     try {
-      const modelsDir = `${FileSystem.documentDirectory}models`;
       const modelsSize = await getDirectorySize(modelsDir);
       const modelsSizeText = formatBytes(modelsSize);
 
@@ -864,9 +882,14 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
 
       <Portal>
         <Dialog visible={dialogVisible} onDismiss={hideDialog}>
-          <Dialog.Title>{dialogTitle}</Dialog.Title>
+          {!!dialogTitle && <Dialog.Title>{dialogTitle}</Dialog.Title>}
           <Dialog.Content>
-            <PaperText>{dialogMessage}</PaperText> 
+            {!!dialogMessage && <PaperText>{dialogMessage}</PaperText>}
+            {dialogLoading && (
+              <View style={styles.dialogLoader}>
+                <PaperActivityIndicator size="large" />
+              </View>
+            )}
           </Dialog.Content>
           <Dialog.Actions>
             {dialogActions.map((ActionComponent, index) =>
@@ -917,5 +940,9 @@ const styles = StyleSheet.create({
   debugButtonSubtitle: {
     fontSize: 14,
     marginTop: 2,
+  },
+  dialogLoader: {
+    marginTop: 14,
+    alignItems: 'center',
   },
 }); 
