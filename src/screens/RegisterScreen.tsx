@@ -62,7 +62,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
 
   const handleOpenTerms = async () => {
     try {
-      await WebBrowser.openBrowserAsync('https://inferra.me/terms-conditions');
+      await WebBrowser.openBrowserAsync('https://inferrlm.app/terms-conditions');
     } catch (error) {
       setError('Failed to open Terms & Conditions. Please try again.');
     }
@@ -70,7 +70,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
 
   const handleOpenPrivacy = async () => {
     try {
-      await WebBrowser.openBrowserAsync('https://inferra.me/privacy-policy');
+      await WebBrowser.openBrowserAsync('https://inferrlm.app/privacy-policy');
     } catch (error) {
       setError('Failed to open Privacy Policy. Please try again.');
     }

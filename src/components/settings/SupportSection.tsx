@@ -90,7 +90,7 @@ const SupportSection = ({ onOpenLink, onNavigateToLicenses, onNavigateToContentT
 
       <TouchableOpacity 
         style={[styles.settingItem, styles.settingItemBorder]}
-        onPress={() => onOpenLink('https://inferra.me/privacy-policy')}
+        onPress={() => onOpenLink('https://inferrlm.app/privacy-policy')}
       >
         <View style={styles.settingLeft}>
           <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
@@ -101,7 +101,7 @@ const SupportSection = ({ onOpenLink, onNavigateToLicenses, onNavigateToContentT
               Privacy Policy
             </Text>
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-              View the app's privacy policy page
+              View InferrLM's privacy policy
             </Text>
           </View>
         </View>
