@@ -347,6 +347,69 @@ export default function DownloadsScreen() {
     );
   };
 
+  const handleCancelAll = () => {
+    const activeNames = downloads.map(item => item.name);
+    if (activeNames.length === 0) {
+      return;
+    }
+
+    const confirmCancelAll = async () => {
+      hideDialog();
+
+      try {
+        await Promise.allSettled(
+          activeNames.map(async modelName => {
+            if (buttonProcessingRef.current.has(modelName)) {
+              return;
+            }
+            buttonProcessingRef.current.add(modelName);
+            try {
+              await modelDownloader.cancelDownload(modelName);
+              await removePersistedActiveDownload(modelName);
+            } finally {
+              buttonProcessingRef.current.delete(modelName);
+            }
+          })
+        );
+
+        setDownloadProgress(prev => {
+          const next = { ...prev };
+          for (const modelName of activeNames) {
+            delete next[modelName];
+          }
+          return next;
+        });
+      } catch {
+        showDialog('Error', 'Failed to cancel all downloads', [
+          <Button key="ok" onPress={hideDialog}>OK</Button>
+        ]);
+      }
+    };
+
+    showDialog(
+      'Cancel All Downloads',
+      `Are you sure you want to cancel ${activeNames.length} active downloads?`,
+      [
+        <Button key="cancel" onPress={hideDialog}>No</Button>,
+        <Button key="confirm" onPress={confirmCancelAll}>Yes</Button>
+      ]
+    );
+  };
+
+  const headerRightButtons = downloads.length > 0 ? (
+    <TouchableOpacity
+      style={styles.headerButton}
+      onPress={handleCancelAll}
+      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+    >
+      <MaterialCommunityIcons
+        name="close-circle-outline"
+        size={22}
+        color={themeColors.headerText}
+      />
+    </TouchableOpacity>
+  ) : [];
+
   const renderItem = ({ item }: { item: DownloadItem }) => {
     const isMLXDownload = item.name.includes('/') || item.name.includes('mlx-community');
     const progressText = `${Math.floor(item.progress || 0)}% • ${formatBytes(item.bytesDownloaded || 0)} / ${formatBytes(item.totalBytes || 0)}`;
@@ -389,7 +452,7 @@ export default function DownloadsScreen() {
         title="Active Downloads"
         showBackButton
         showLogo={false}
-        rightButtons={[]}
+        rightButtons={headerRightButtons}
       />
       
       <View style={[styles.container, { backgroundColor: themeColors.background }]}>
@@ -477,5 +540,13 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     padding: 4,
+  },
+  headerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 }); 
