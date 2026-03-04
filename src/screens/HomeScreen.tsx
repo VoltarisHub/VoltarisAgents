@@ -624,6 +624,16 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const handleEditingStateChange = useCallback((isEditing: boolean) => {
   }, []);
 
+  const handleSwitchBranch = useCallback(async (branchChatId: string) => {
+    handleCancelEdit();
+    await chatManager.setCurrentChat(branchChatId, true);
+    const branchChat = chatManager.getChatById(branchChatId);
+    if (branchChat) {
+      setChat(branchChat);
+      setMessages([...branchChat.messages]);
+    }
+  }, [handleCancelEdit]);
+
   const handleRegenerate = async () => {
     if (messages.length < 2) return;
     
@@ -762,6 +772,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
            onStopGeneration={stopGenerationIfRunning}
            onEditingStateChange={handleEditingStateChange}
            onStartEdit={handleStartEdit}
+           chatId={chat?.id}
+           onSwitchBranch={handleSwitchBranch}
         />
 
         <ChatInput

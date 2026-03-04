@@ -62,18 +62,18 @@ export const useMessageEditing = (messages: ChatMessage[], onProcessMessage: () 
         finalContent = text.trim();
       }
 
-      const success = await chatManager.editMessage(editingMessageId, finalContent);
+      const branch = await chatManager.createBranch(editingMessageId, finalContent);
       
-      if (success) {
+      if (branch) {
         handleCancelEdit();
         setTimeout(async () => {
           await onProcessMessage();
         }, 50);
       } else {
-        Alert.alert('Error', 'Failed to edit message');
+        Alert.alert('Error', 'Failed to create edit branch');
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to edit message');
+      Alert.alert('Error', 'Failed to create edit branch');
     }
   }, [editingMessageId, messages, onProcessMessage]);
 

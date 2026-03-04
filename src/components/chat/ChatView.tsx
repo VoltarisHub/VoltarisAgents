@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -54,6 +54,8 @@ type ChatViewProps = {
   onStopGeneration?: () => void;
   onEditingStateChange?: (isEditing: boolean) => void;
   onStartEdit?: (messageId: string, content: string) => void;
+  chatId?: string;
+  onSwitchBranch?: (branchChatId: string) => void;
 };
 
 const hasMarkdownFormatting = (content: string): boolean => {
@@ -94,6 +96,8 @@ export default function ChatView({
   onStopGeneration,
   onEditingStateChange,
   onStartEdit,
+  chatId,
+  onSwitchBranch,
 }: ChatViewProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -103,6 +107,11 @@ export default function ChatView({
   const [isImageViewerVisible, setIsImageViewerVisible] = useState(false);
   const [imgViewSize, setImgViewSize] = useState<{ width: number; height: number } | null>(null);
   const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
+
+  const branchInfoMap = useMemo(() => {
+    if (!chatId) return new Map<number, { total: number; current: number; branches: string[] }>();
+    return chatManager.getAllBranchInfo(chatId);
+  }, [chatId, messages]);
 
   const openReportDialog = useCallback((messageContent: string, provider: string) => {
     navigation.navigate('Report', {
@@ -203,7 +212,9 @@ export default function ChatView({
     }
   }, []);
 
-  const renderMessage = useCallback(({ item }: { item: Message }) => {
+  const renderMessage = useCallback(({ item, index }: { item: Message; index: number }) => {
+    const origIndex = messages.length - 1 - index;
+    const branchInfo = branchInfoMap.get(origIndex);
     const isCurrentlyStreaming = isStreaming && !justCancelled && item.id === streamingMessageId;
     const showLoadingIndicator = isCurrentlyStreaming && !streamingMessage;
     
@@ -633,9 +644,37 @@ export default function ChatView({
             </View>
           ) : null}
         </View>
+
+        {item.role === 'user' && branchInfo && branchInfo.total > 1 ? (
+          <View style={[styles.branchNav, { alignSelf: 'flex-end' }]}>
+            <TouchableOpacity
+              onPress={() => {
+                const prevIdx = (branchInfo.current - 1 + branchInfo.total) % branchInfo.total;
+                onSwitchBranch?.(branchInfo.branches[prevIdx]);
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.branchNavBtn}
+            >
+              <MaterialCommunityIcons name="chevron-left" size={18} color={themeColors.secondaryText} />
+            </TouchableOpacity>
+            <Text style={[styles.branchNavText, { color: themeColors.secondaryText }]}>
+              {branchInfo.current + 1}/{branchInfo.total}
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                const nextIdx = (branchInfo.current + 1) % branchInfo.total;
+                onSwitchBranch?.(branchInfo.branches[nextIdx]);
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.branchNavBtn}
+            >
+              <MaterialCommunityIcons name="chevron-right" size={18} color={themeColors.secondaryText} />
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </View>
     );
-  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled, openImageViewer, startEditing, formatTime, formatDuration]);
+  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled, openImageViewer, startEditing, formatTime, formatDuration, branchInfoMap, onSwitchBranch]);
 
   const renderContent = () => {
     if (messages.length === 0) {
@@ -1039,5 +1078,21 @@ const styles = StyleSheet.create({
   },
   statIcon: {
     marginRight: 4,
+  },
+  branchNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginTop: 2,
+  },
+  branchNavBtn: {
+    padding: 4,
+  },
+  branchNavText: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginHorizontal: 4,
   },
 }); 

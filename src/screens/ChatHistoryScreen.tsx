@@ -175,6 +175,14 @@ export default function ChatHistoryScreen() {
           {new Date(item.timestamp).toLocaleDateString()} • 
           {item.messages.length} messages
         </Text>
+        {item.parentChatId ? (
+          <View style={styles.branchBadge}>
+            <MaterialCommunityIcons name="source-branch" size={14} color={themeColors.secondaryText} />
+            <Text style={[styles.branchBadgeText, { color: themeColors.secondaryText }]}>
+              Branch
+            </Text>
+          </View>
+        ) : null}
       </View>
       
       <View style={styles.chatActions}>
@@ -350,5 +358,14 @@ const styles = StyleSheet.create({
   },
   footerLoader: {
     paddingVertical: 16,
+  },
+  branchBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  branchBadgeText: {
+    fontSize: 12,
+    marginLeft: 4,
   },
 }); 

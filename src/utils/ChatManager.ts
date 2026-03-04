@@ -25,6 +25,9 @@ export type Chat = {
   messages: ChatMessage[];
   timestamp: number;
   modelPath?: string;
+  parentChatId?: string;
+  branchFromMsgId?: string;
+  branchPointIndex?: number;
 };
 
 class ChatManager {
@@ -311,6 +314,123 @@ class ChatManager {
     } catch (error) {
       return false;
     }
+  }
+
+  async createBranch(messageId: string, newContent: string): Promise<Chat | null> {
+    try {
+      await this.ensureInitialized();
+      if (!this.currentChatId) return null;
+
+      const chat = this.getChatById(this.currentChatId);
+      if (!chat) return null;
+
+      const msgIndex = chat.messages.findIndex(m => m.id === messageId);
+      if (msgIndex === -1) return null;
+      if (chat.messages[msgIndex].role !== 'user') return null;
+
+      const prefix = chat.messages.slice(0, msgIndex).map(m => ({
+        ...m,
+        id: generateRandomId(),
+      }));
+
+      const editedMsg: ChatMessage = {
+        id: generateRandomId(),
+        content: newContent,
+        role: 'user',
+      };
+
+      const branch: Chat = {
+        id: generateRandomId(),
+        title: chat.title,
+        messages: [...prefix, editedMsg],
+        timestamp: Date.now(),
+        modelPath: chat.modelPath,
+        parentChatId: chat.id,
+        branchFromMsgId: messageId,
+        branchPointIndex: msgIndex,
+      };
+
+      this.cache.unshift(branch);
+      this.currentChatId = branch.id;
+      await this.persistCurrentChat();
+      await this.saveChat(branch);
+      this.notifyListeners();
+      return branch;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  getAllBranchInfo(
+    chatId: string,
+  ): Map<number, { total: number; current: number; branches: string[] }> {
+    const result = new Map<
+      number,
+      { total: number; current: number; branches: string[] }
+    >();
+    const chat = this.getChatById(chatId);
+    if (!chat) return result;
+
+    if (
+      chat.parentChatId !== undefined &&
+      chat.branchPointIndex !== undefined &&
+      chat.branchFromMsgId
+    ) {
+      const parent = this.getChatById(chat.parentChatId);
+      if (parent) {
+        const siblings = [parent.id];
+        const branches = this.cache
+          .filter(
+            c =>
+              c.parentChatId === parent.id &&
+              c.branchFromMsgId === chat.branchFromMsgId,
+          )
+          .sort((a, b) => a.timestamp - b.timestamp);
+        for (const b of branches) {
+          siblings.push(b.id);
+        }
+        if (siblings.length > 1) {
+          const currentIdx = siblings.indexOf(chatId);
+          result.set(chat.branchPointIndex, {
+            total: siblings.length,
+            current: currentIdx,
+            branches: siblings,
+          });
+        }
+      }
+    }
+
+    const childBranches = this.cache.filter(c => c.parentChatId === chatId);
+    const branchPoints = new Map<string, Chat[]>();
+    for (const child of childBranches) {
+      if (!child.branchFromMsgId) continue;
+      const key = child.branchFromMsgId;
+      if (!branchPoints.has(key)) {
+        branchPoints.set(key, []);
+      }
+      branchPoints.get(key)!.push(child);
+    }
+
+    for (const [msgId, branches] of branchPoints) {
+      const msgIdx = chat.messages.findIndex(m => m.id === msgId);
+      if (msgIdx === -1) continue;
+      if (result.has(msgIdx)) continue;
+
+      const siblings = [chatId];
+      branches.sort((a, b) => a.timestamp - b.timestamp);
+      for (const b of branches) {
+        siblings.push(b.id);
+      }
+      if (siblings.length > 1) {
+        result.set(msgIdx, {
+          total: siblings.length,
+          current: 0,
+          branches: siblings,
+        });
+      }
+    }
+
+    return result;
   }
 
   async updateChatMessages(chatId: string, messages: ChatMessage[]): Promise<boolean> {

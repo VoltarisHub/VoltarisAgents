@@ -11,6 +11,7 @@ class ChatDatabase {
     try {
       this.db = await SQLite.openDatabaseAsync(this.dbName);
       await this.createTables();
+      await this.migrate();
     } catch (error) {
       throw new Error(`Failed to initialize database: ${error}`);
     }
@@ -47,11 +48,37 @@ class ChatDatabase {
     `);
   }
 
+  private async migrate(): Promise<void> {
+    if (!this.db) return;
+    const cols = [
+      { name: 'parentChatId', type: 'TEXT' },
+      { name: 'branchFromMsgId', type: 'TEXT' },
+      { name: 'branchPointIndex', type: 'INTEGER' },
+    ];
+    for (const col of cols) {
+      try {
+        await this.db.execAsync(
+          `ALTER TABLE chats ADD COLUMN ${col.name} ${col.type}`
+        );
+      } catch (e) {
+        /* column already exists */
+      }
+    }
+  }
+
   async insertChat(chat: Chat): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
     await this.db.runAsync(
-      'INSERT OR REPLACE INTO chats (id, title, timestamp, modelPath) VALUES (?, ?, ?, ?)',
-      [chat.id, chat.title, chat.timestamp, chat.modelPath || null]
+      'INSERT OR REPLACE INTO chats (id, title, timestamp, modelPath, parentChatId, branchFromMsgId, branchPointIndex) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [
+        chat.id,
+        chat.title,
+        chat.timestamp,
+        chat.modelPath || null,
+        chat.parentChatId || null,
+        chat.branchFromMsgId || null,
+        chat.branchPointIndex ?? null,
+      ]
     );
   }
 
@@ -98,6 +125,9 @@ class ChatDatabase {
       title: string;
       timestamp: number;
       modelPath: string | null;
+      parentChatId: string | null;
+      branchFromMsgId: string | null;
+      branchPointIndex: number | null;
     }>('SELECT * FROM chats ORDER BY timestamp DESC');
 
     const chats: Chat[] = [];
@@ -133,6 +163,9 @@ class ChatDatabase {
         messages,
         timestamp: chatData.timestamp,
         modelPath: chatData.modelPath || undefined,
+        parentChatId: chatData.parentChatId || undefined,
+        branchFromMsgId: chatData.branchFromMsgId || undefined,
+        branchPointIndex: chatData.branchPointIndex ?? undefined,
       });
     }
 
