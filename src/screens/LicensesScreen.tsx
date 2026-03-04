@@ -106,7 +106,7 @@ const licenses: License[] = [
     name: 'react-native-pdf-page-image',
     description: 'Convert PDF pages to images in React Native',
     licenseType: 'MIT License',
-    licenseUrl: 'https://github.com/jesusbmx/react-native-pdf-page-image/blob/main/LICENSE',
+    licenseUrl: 'https://github.com/jesusbmx/react-native-pdf-page-image/blob/master/LICENSE',
     repositoryUrl: 'https://github.com/jesusbmx/react-native-pdf-page-image'
   },
   {
@@ -134,7 +134,7 @@ const licenses: License[] = [
     name: '@react-native-menu/menu',
     description: 'Native context menu and dropdown menu for React Native',
     licenseType: 'MIT License',
-    licenseUrl: 'https://github.com/react-native-menu/menu/blob/main/LICENSE',
+    licenseUrl: 'https://github.com/react-native-menu/menu/blob/master/LICENSE',
     repositoryUrl: 'https://github.com/react-native-menu/menu'
   },
   {
@@ -162,7 +162,7 @@ const licenses: License[] = [
     name: '@dr.pogodin/react-native-fs',
     description: 'Native filesystem access for React Native',
     licenseType: 'MIT License',
-    licenseUrl: 'https://github.com/birdofpreyru/react-native-fs/blob/main/LICENSE',
+    licenseUrl: 'https://github.com/birdofpreyru/react-native-fs/blob/master/LICENSE.md',
     repositoryUrl: 'https://github.com/birdofpreyru/react-native-fs'
   },
   {
@@ -175,7 +175,7 @@ const licenses: License[] = [
   {
     name: 'react-native-in-app-review',
     description: 'Native in-app review functionality',
-    licenseUrl: 'https://github.com/react-native-menu/menu/blob/master/LICENSE',
+    licenseType: 'MIT License',
     licenseUrl: 'https://github.com/MinaSamir11/react-native-in-app-review/blob/master/LICENSE',
     repositoryUrl: 'https://github.com/MinaSamir11/react-native-in-app-review'
   },
