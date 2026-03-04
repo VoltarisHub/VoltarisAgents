@@ -56,6 +56,7 @@ class ChatDatabase {
       { name: 'branchPointIndex', type: 'INTEGER' },
       { name: 'forkedFromChatId', type: 'TEXT' },
       { name: 'forkPointIndex', type: 'INTEGER' },
+      { name: 'createdAt', type: 'INTEGER' },
     ];
     for (const col of cols) {
       try {
@@ -71,7 +72,7 @@ class ChatDatabase {
   async insertChat(chat: Chat): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
     await this.db.runAsync(
-      'INSERT OR REPLACE INTO chats (id, title, timestamp, modelPath, parentChatId, branchFromMsgId, branchPointIndex, forkedFromChatId, forkPointIndex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT OR REPLACE INTO chats (id, title, timestamp, modelPath, parentChatId, branchFromMsgId, branchPointIndex, forkedFromChatId, forkPointIndex, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         chat.id,
         chat.title,
@@ -82,6 +83,7 @@ class ChatDatabase {
         chat.branchPointIndex ?? null,
         chat.forkedFromChatId || null,
         chat.forkPointIndex ?? null,
+        chat.createdAt,
       ]
     );
   }
@@ -134,6 +136,7 @@ class ChatDatabase {
       branchPointIndex: number | null;
       forkedFromChatId: string | null;
       forkPointIndex: number | null;
+      createdAt: number | null;
     }>('SELECT * FROM chats ORDER BY timestamp DESC');
 
     const chats: Chat[] = [];
@@ -168,6 +171,7 @@ class ChatDatabase {
         title: chatData.title,
         messages,
         timestamp: chatData.timestamp,
+        createdAt: chatData.createdAt ?? chatData.timestamp,
         modelPath: chatData.modelPath || undefined,
         parentChatId: chatData.parentChatId || undefined,
         branchFromMsgId: chatData.branchFromMsgId || undefined,

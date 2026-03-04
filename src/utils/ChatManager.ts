@@ -24,6 +24,7 @@ export type Chat = {
   title: string;
   messages: ChatMessage[];
   timestamp: number;
+  createdAt: number;
   modelPath?: string;
   parentChatId?: string;
   branchFromMsgId?: string;
@@ -161,7 +162,7 @@ class ChatManager {
       const siblings = [originId, ...forkIds.sort((a, b) => {
         const ca = this.getChatById(a);
         const cb = this.getChatById(b);
-        return (ca?.timestamp ?? 0) - (cb?.timestamp ?? 0);
+        return (ca?.createdAt ?? 0) - (cb?.createdAt ?? 0);
       })];
       if (siblings.length < 2) continue;
 
@@ -184,7 +185,7 @@ class ChatManager {
       const related = this.cache.filter(
         c => c.forkedFromChatId === originId && c.forkPointIndex === forkIdx,
       );
-      related.sort((a, b) => a.timestamp - b.timestamp);
+      related.sort((a, b) => a.createdAt - b.createdAt);
       for (const r of related) {
         siblingsForThis.push(r.id);
       }
@@ -217,11 +218,13 @@ class ChatManager {
         id: generateRandomId(),
       }));
 
+      const now = Date.now();
       const fork: Chat = {
         id: generateRandomId(),
         title: chat.title,
         messages: copiedMsgs,
-        timestamp: Date.now(),
+        timestamp: now,
+        createdAt: now,
         modelPath: chat.modelPath,
         forkedFromChatId: originId,
         forkPointIndex: fromMsgIndex,
@@ -274,11 +277,13 @@ class ChatManager {
         }
       }
 
+      const now = Date.now();
       const newChat: Chat = {
         id: generateRandomId(),
         title: 'New Chat',
         messages: initialMessages,
-        timestamp: Date.now(),
+        timestamp: now,
+        createdAt: now,
       };
 
       this.cache.unshift(newChat);
@@ -484,11 +489,13 @@ class ChatManager {
         role: 'user',
       };
 
+      const now = Date.now();
       const branch: Chat = {
         id: generateRandomId(),
         title: chat.title,
         messages: [...prefix, editedMsg],
-        timestamp: Date.now(),
+        timestamp: now,
+        createdAt: now,
         modelPath: chat.modelPath,
         parentChatId: rootId,
         branchFromMsgId: messageId,
@@ -530,7 +537,7 @@ class ChatManager {
               c.parentChatId === parent.id &&
               c.branchPointIndex === chat.branchPointIndex,
           )
-          .sort((a, b) => a.timestamp - b.timestamp);
+          .sort((a, b) => a.createdAt - b.createdAt);
         for (const b of branches) {
           siblings.push(b.id);
         }
@@ -560,7 +567,7 @@ class ChatManager {
       if (result.has(pointIdx)) continue;
 
       const siblings = [chatId];
-      branches.sort((a, b) => a.timestamp - b.timestamp);
+      branches.sort((a, b) => a.createdAt - b.createdAt);
       for (const b of branches) {
         siblings.push(b.id);
       }
