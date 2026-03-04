@@ -28,6 +28,8 @@ export type Chat = {
   parentChatId?: string;
   branchFromMsgId?: string;
   branchPointIndex?: number;
+  forkedFromChatId?: string;
+  forkPointIndex?: number;
 };
 
 class ChatManager {
@@ -129,6 +131,76 @@ class ChatManager {
     return this.cache.filter(c => c.parentChatId === rootId).length;
   }
 
+  getForkInfo(
+    chatId: string,
+  ): Map<number, { total: number; current: number; forks: string[] }> {
+    const result = new Map<
+      number,
+      { total: number; current: number; forks: string[] }
+    >();
+    const chat = this.getChatById(chatId);
+    if (!chat) return result;
+
+    const originId = chat.forkedFromChatId ?? chatId;
+    const forkIdx = chat.forkPointIndex;
+
+    const allForks = this.cache.filter(
+      c => c.forkedFromChatId === originId,
+    );
+
+    const pointMap = new Map<number, string[]>();
+    for (const f of allForks) {
+      if (f.forkPointIndex === undefined) continue;
+      if (!pointMap.has(f.forkPointIndex)) {
+        pointMap.set(f.forkPointIndex, []);
+      }
+      pointMap.get(f.forkPointIndex)!.push(f.id);
+    }
+
+    for (const [idx, forkIds] of pointMap) {
+      const siblings = [originId, ...forkIds.sort((a, b) => {
+        const ca = this.getChatById(a);
+        const cb = this.getChatById(b);
+        return (ca?.timestamp ?? 0) - (cb?.timestamp ?? 0);
+      })];
+      if (siblings.length < 2) continue;
+
+      const currentIdx = siblings.indexOf(chatId);
+      if (currentIdx === -1 && chatId !== originId) continue;
+
+      result.set(idx, {
+        total: siblings.length,
+        current: currentIdx === -1 ? 0 : currentIdx,
+        forks: siblings,
+      });
+    }
+
+    if (
+      chat.forkedFromChatId &&
+      forkIdx !== undefined &&
+      !result.has(forkIdx)
+    ) {
+      const siblingsForThis = [originId];
+      const related = this.cache.filter(
+        c => c.forkedFromChatId === originId && c.forkPointIndex === forkIdx,
+      );
+      related.sort((a, b) => a.timestamp - b.timestamp);
+      for (const r of related) {
+        siblingsForThis.push(r.id);
+      }
+      if (siblingsForThis.length > 1) {
+        const ci = siblingsForThis.indexOf(chatId);
+        result.set(forkIdx, {
+          total: siblingsForThis.length,
+          current: ci === -1 ? 0 : ci,
+          forks: siblingsForThis,
+        });
+      }
+    }
+
+    return result;
+  }
+
   async forkChat(fromMsgIndex: number): Promise<Chat | null> {
     try {
       await this.ensureInitialized();
@@ -149,6 +221,8 @@ class ChatManager {
         messages: copiedMsgs,
         timestamp: Date.now(),
         modelPath: chat.modelPath,
+        forkedFromChatId: this.currentChatId!,
+        forkPointIndex: fromMsgIndex,
       };
 
       this.cache.unshift(fork);

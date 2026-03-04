@@ -115,6 +115,11 @@ export default function ChatView({
     return chatManager.getAllBranchInfo(chatId);
   }, [chatId, messages]);
 
+  const forkInfoMap = useMemo(() => {
+    if (!chatId) return new Map<number, { total: number; current: number; forks: string[] }>();
+    return chatManager.getForkInfo(chatId);
+  }, [chatId, messages]);
+
   const openReportDialog = useCallback((messageContent: string, provider: string) => {
     navigation.navigate('Report', {
       messageContent,
@@ -217,6 +222,7 @@ export default function ChatView({
   const renderMessage = useCallback(({ item, index }: { item: Message; index: number }) => {
     const origIndex = messages.length - 1 - index;
     const branchInfo = branchInfoMap.get(origIndex);
+    const forkInfo = forkInfoMap.get(origIndex);
     const isCurrentlyStreaming = isStreaming && !justCancelled && item.id === streamingMessageId;
     const showLoadingIndicator = isCurrentlyStreaming && !streamingMessage;
     
@@ -687,9 +693,37 @@ export default function ChatView({
             </TouchableOpacity>
           </View>
         ) : null}
+
+        {item.role === 'assistant' && forkInfo && forkInfo.total > 1 ? (
+          <View style={[styles.branchNav, { alignSelf: 'flex-start' }]}>
+            <TouchableOpacity
+              onPress={() => {
+                const prevIdx = (forkInfo.current - 1 + forkInfo.total) % forkInfo.total;
+                onSwitchBranch?.(forkInfo.forks[prevIdx]);
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.branchNavBtn}
+            >
+              <MaterialCommunityIcons name="chevron-left" size={18} color={themeColors.secondaryText} />
+            </TouchableOpacity>
+            <Text style={[styles.branchNavText, { color: themeColors.secondaryText }]}>
+              {forkInfo.current + 1}/{forkInfo.total}
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                const nextIdx = (forkInfo.current + 1) % forkInfo.total;
+                onSwitchBranch?.(forkInfo.forks[nextIdx]);
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.branchNavBtn}
+            >
+              <MaterialCommunityIcons name="chevron-right" size={18} color={themeColors.secondaryText} />
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </View>
     );
-  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled, openImageViewer, startEditing, formatTime, formatDuration, branchInfoMap, onSwitchBranch, onForkChat]);
+  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled, openImageViewer, startEditing, formatTime, formatDuration, branchInfoMap, forkInfoMap, onSwitchBranch, onForkChat]);
 
   const renderContent = () => {
     if (messages.length === 0) {
