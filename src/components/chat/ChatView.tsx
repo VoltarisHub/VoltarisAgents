@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -109,6 +109,22 @@ export default function ChatView({
   const [isImageViewerVisible, setIsImageViewerVisible] = useState(false);
   const [imgViewSize, setImgViewSize] = useState<{ width: number; height: number } | null>(null);
   const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
+  const branchSwitchRef = useRef(false);
+  const branchSwitchTimer = useRef<NodeJS.Timeout | null>(null);
+  const branchAnchorIdxRef = useRef<number | null>(null);
+  const pendingAnchorRestoreRef = useRef(false);
+
+  const markBranchSwitch = useCallback((origIndex: number) => {
+    branchSwitchRef.current = true;
+    branchAnchorIdxRef.current = origIndex;
+    pendingAnchorRestoreRef.current = true;
+    if (branchSwitchTimer.current) {
+      clearTimeout(branchSwitchTimer.current);
+    }
+    branchSwitchTimer.current = setTimeout(() => {
+      branchSwitchRef.current = false;
+    }, 500);
+  }, []);
 
   const branchInfoMap = useMemo(() => {
     if (!chatId) return new Map<number, { total: number; current: number; branches: string[] }>();
@@ -671,6 +687,7 @@ export default function ChatView({
             <TouchableOpacity
               onPress={() => {
                 const prevIdx = (branchInfo.current - 1 + branchInfo.total) % branchInfo.total;
+                markBranchSwitch(origIndex);
                 onSwitchBranch?.(branchInfo.branches[prevIdx]);
               }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -684,6 +701,7 @@ export default function ChatView({
             <TouchableOpacity
               onPress={() => {
                 const nextIdx = (branchInfo.current + 1) % branchInfo.total;
+                markBranchSwitch(origIndex);
                 onSwitchBranch?.(branchInfo.branches[nextIdx]);
               }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -699,6 +717,7 @@ export default function ChatView({
             <TouchableOpacity
               onPress={() => {
                 const prevIdx = (forkInfo.current - 1 + forkInfo.total) % forkInfo.total;
+                markBranchSwitch(origIndex);
                 onSwitchBranch?.(forkInfo.forks[prevIdx]);
               }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -712,6 +731,7 @@ export default function ChatView({
             <TouchableOpacity
               onPress={() => {
                 const nextIdx = (forkInfo.current + 1) % forkInfo.total;
+                markBranchSwitch(origIndex);
                 onSwitchBranch?.(forkInfo.forks[nextIdx]);
               }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -748,29 +768,73 @@ export default function ChatView({
         ref={flatListRef}
         data={[...messages].reverse()}
         renderItem={renderMessage}
-        keyExtractor={(item: Message) => item.id}
+        keyExtractor={(_item: Message, idx: number) => `msg-${idx}`}
+        extraData={chatId}
         contentContainerStyle={styles.messageList}
         inverted={true}
-        maintainVisibleContentPosition={{
-          minIndexForVisible: 0,
-          autoscrollToTopThreshold: 10,
-        }}
+        maintainVisibleContentPosition={
+          branchSwitchRef.current
+            ? { minIndexForVisible: 0 }
+            : { minIndexForVisible: 0, autoscrollToTopThreshold: 10 }
+        }
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={true}
         initialNumToRender={15}
-        removeClippedSubviews={Platform.OS === 'android'}
+        removeClippedSubviews={false}
         windowSize={10}
         maxToRenderPerBatch={10}
         updateCellsBatchingPeriod={50}
         onEndReachedThreshold={0.5}
         scrollIndicatorInsets={{ right: 1 }}
         onTouchStart={Keyboard.dismiss}
-        onLayout={() => {
-          if (flatListRef.current && messages.length > 0) {
-            flatListRef.current.scrollToOffset({ offset: 0, animated: false });
+        onContentSizeChange={() => {
+          if (!pendingAnchorRestoreRef.current) {
+            return;
           }
+          const anchorOrigIndex = branchAnchorIdxRef.current;
+          if (anchorOrigIndex === null || messages.length === 0 || !flatListRef.current) {
+            return;
+          }
+          const targetIndex = Math.max(
+            0,
+            Math.min(messages.length - 1, messages.length - 1 - anchorOrigIndex)
+          );
+          try {
+            flatListRef.current.scrollToIndex({
+              index: targetIndex,
+              animated: false,
+              viewPosition: 0.5,
+            });
+            pendingAnchorRestoreRef.current = false;
+          } catch (error) {
+          }
+        }}
+        onScrollToIndexFailed={({ index, averageItemLength }) => {
+          if (!flatListRef.current) {
+            return;
+          }
+          flatListRef.current.scrollToOffset({
+            offset: Math.max(0, averageItemLength * index),
+            animated: false,
+          });
+          setTimeout(() => {
+            const anchorOrigIndex = branchAnchorIdxRef.current;
+            if (anchorOrigIndex === null || messages.length === 0 || !flatListRef.current) {
+              return;
+            }
+            const targetIndex = Math.max(
+              0,
+              Math.min(messages.length - 1, messages.length - 1 - anchorOrigIndex)
+            );
+            flatListRef.current.scrollToIndex({
+              index: targetIndex,
+              animated: false,
+              viewPosition: 0.5,
+            });
+            pendingAnchorRestoreRef.current = false;
+          }, 32);
         }}
       />
     );
