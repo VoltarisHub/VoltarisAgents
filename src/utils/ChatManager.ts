@@ -210,6 +210,8 @@ class ChatManager {
       if (!chat) return null;
       if (fromMsgIndex < 0 || fromMsgIndex >= chat.messages.length) return null;
 
+      const originId = chat.forkedFromChatId ?? this.currentChatId!;
+
       const copiedMsgs = chat.messages.slice(0, fromMsgIndex + 1).map(m => ({
         ...m,
         id: generateRandomId(),
@@ -221,7 +223,7 @@ class ChatManager {
         messages: copiedMsgs,
         timestamp: Date.now(),
         modelPath: chat.modelPath,
-        forkedFromChatId: this.currentChatId!,
+        forkedFromChatId: originId,
         forkPointIndex: fromMsgIndex,
       };
 
@@ -469,6 +471,8 @@ class ChatManager {
       if (msgIndex === -1) return null;
       if (chat.messages[msgIndex].role !== 'user') return null;
 
+      const rootId = chat.parentChatId ?? chat.id;
+
       const prefix = chat.messages.slice(0, msgIndex).map(m => ({
         ...m,
         id: generateRandomId(),
@@ -486,7 +490,7 @@ class ChatManager {
         messages: [...prefix, editedMsg],
         timestamp: Date.now(),
         modelPath: chat.modelPath,
-        parentChatId: chat.id,
+        parentChatId: rootId,
         branchFromMsgId: messageId,
         branchPointIndex: msgIndex,
       };
@@ -524,7 +528,7 @@ class ChatManager {
           .filter(
             c =>
               c.parentChatId === parent.id &&
-              c.branchFromMsgId === chat.branchFromMsgId,
+              c.branchPointIndex === chat.branchPointIndex,
           )
           .sort((a, b) => a.timestamp - b.timestamp);
         for (const b of branches) {
@@ -542,20 +546,18 @@ class ChatManager {
     }
 
     const childBranches = this.cache.filter(c => c.parentChatId === chatId);
-    const branchPoints = new Map<string, Chat[]>();
+    const branchPoints = new Map<number, Chat[]>();
     for (const child of childBranches) {
-      if (!child.branchFromMsgId) continue;
-      const key = child.branchFromMsgId;
+      if (child.branchPointIndex === undefined) continue;
+      const key = child.branchPointIndex;
       if (!branchPoints.has(key)) {
         branchPoints.set(key, []);
       }
       branchPoints.get(key)!.push(child);
     }
 
-    for (const [msgId, branches] of branchPoints) {
-      const msgIdx = chat.messages.findIndex(m => m.id === msgId);
-      if (msgIdx === -1) continue;
-      if (result.has(msgIdx)) continue;
+    for (const [pointIdx, branches] of branchPoints) {
+      if (result.has(pointIdx)) continue;
 
       const siblings = [chatId];
       branches.sort((a, b) => a.timestamp - b.timestamp);
@@ -563,7 +565,7 @@ class ChatManager {
         siblings.push(b.id);
       }
       if (siblings.length > 1) {
-        result.set(msgIdx, {
+        result.set(pointIdx, {
           total: siblings.length,
           current: 0,
           branches: siblings,
