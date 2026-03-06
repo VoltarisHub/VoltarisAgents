@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { ProviderType } from '../services/ModelManagementService';
-import { StoredModel, MLXGroup } from './ModelSelector.types';
+import { OnlineModelService } from '../services/OnlineModelService';
+import { StoredModel, MLXGroup, OnlineModel } from './ModelSelector.types';
 
 export const formatBytes = (bytes: number) => {
   if (bytes === 0) return '0 B';
@@ -14,14 +15,27 @@ export const getDisplayName = (filename: string) => {
   return filename.split('.')[0];
 };
 
-export const getModelNameFromPath = (path: string | null, models: StoredModel[]): string => {
+export const getModelNameFromPath = (path: string | null, models: StoredModel[], cloneModels: OnlineModel[] = []): string => {
   if (!path) return 'Select a Model';
+
+  const cloneModel = cloneModels.find(model => model.id === path);
+  if (cloneModel) {
+    return cloneModel.name;
+  }
   
   if (path === 'gemini') return 'Gemini';
   if (path === 'chatgpt') return 'ChatGPT';
   if (path === 'deepseek') return 'DeepSeek';
   if (path === 'claude') return 'Claude';
   if (path === 'apple-foundation') return 'Apple Foundation';
+
+  if (OnlineModelService.isClone(path)) {
+    const baseProvider = OnlineModelService.getBaseProvider(path);
+    if (baseProvider === 'gemini') return 'Gemini Clone';
+    if (baseProvider === 'chatgpt') return 'ChatGPT Clone';
+    if (baseProvider === 'deepseek') return 'DeepSeek Clone';
+    if (baseProvider === 'claude') return 'Claude Clone';
+  }
   
   const model = models.find(m => m.path === path);
   return model ? getDisplayName(model.name) : getDisplayName(path.split('/').pop() || '');
@@ -38,7 +52,8 @@ const remoteProviders = new Set<ProviderType>(['gemini', 'chatgpt', 'deepseek', 
 
 const isRemoteProvider = (provider: string | null): boolean => {
   if (!provider) return false;
-  return remoteProviders.has(provider as ProviderType);
+  const baseProvider = OnlineModelService.getBaseProvider(provider);
+  return remoteProviders.has(baseProvider as ProviderType);
 };
 
 const isAppleProvider = (provider: string | null): boolean => provider === 'apple-foundation';

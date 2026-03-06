@@ -866,7 +866,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                 <Text style={[styles.selectorText, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>
                   {isModelLoading 
                     ? 'Loading...' 
-                    : getModelNameFromPath(selectedModelPath, models)
+                    : getModelNameFromPath(selectedModelPath, models, cloneModels)
                   }
                 </Text>
                 {selectedModelPath && !isModelLoading && (

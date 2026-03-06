@@ -30,6 +30,7 @@ import { RAGService, type RAGDocument, type RAGStorageType } from '../../service
 import type { ProviderType } from '../../services/ModelManagementService';
 import chatManager from '../../utils/ChatManager';
 import { uuidv4 } from 'react-native-rag';
+import { OnlineModelService } from '../../services/OnlineModelService';
 
 type ChatInputProps = {
   onSend: (text: string) => void;
@@ -55,6 +56,24 @@ interface StoredModel {
 }
 
 const remoteProviders: ProviderType[] = ['gemini', 'chatgpt', 'deepseek', 'claude'];
+
+const isRemoteProvider = (provider: string | null): boolean => {
+  if (!provider) {
+    return false;
+  }
+  const baseProvider = OnlineModelService.getBaseProvider(provider);
+  return remoteProviders.includes(baseProvider as ProviderType);
+};
+
+const isOnlineProvider = (provider: string | null): boolean => {
+  if (!provider) {
+    return false;
+  }
+  if (provider === 'apple-foundation') {
+    return true;
+  }
+  return isRemoteProvider(provider);
+};
 
 export default function ChatInput({ 
   onSend, 
@@ -90,7 +109,7 @@ export default function ChatInput({
   const { selectedModelPath, isModelLoading, loadModel, isMultimodalEnabled } = useModel();
   const themeColors = useMemo(() => theme[currentTheme as 'light' | 'dark'], [currentTheme]);
   const isDark = currentTheme === 'dark';
-  const isRemoteModel = !!selectedModelPath && remoteProviders.includes(selectedModelPath as ProviderType);
+  const isRemoteModel = isRemoteProvider(selectedModelPath);
   const isAppleFoundation = selectedModelPath === 'apple-foundation';
   const ragEnabledForCurrentModel = !!selectedModelPath && !isRemoteModel;
   const ragToggleDisabled = isAppleFoundation;
@@ -225,7 +244,7 @@ export default function ChatInput({
   const checkMultimodalSupport = (): boolean => {
     if (!selectedModelPath) return false;
 
-    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
+    const isOnlineModel = isOnlineProvider(selectedModelPath);
     if (isOnlineModel) {
       return true;
     }
@@ -419,7 +438,7 @@ export default function ChatInput({
       return;
     }
 
-    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
+    const isOnlineModel = isOnlineProvider(selectedModelPath);
     const engineReady = engineService.mgr().ready();
     
     if (!isOnlineModel && (!engineReady || isModelLoading)) {
@@ -466,7 +485,7 @@ export default function ChatInput({
           return { handled, cancelled, documentId };
         }
 
-        const isRemoteOrApple = selectedModelPath && ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
+        const isRemoteOrApple = isOnlineProvider(selectedModelPath);
         if (!isRemoteOrApple && !engineService.mgr().ready()) {
           showDialog('Model not ready', 'Load a local model before using retrieval.');
           return { handled, cancelled, documentId };
@@ -477,7 +496,7 @@ export default function ChatInput({
         ragCancelRef.current.cancelled = false;
         setRagProgress({ completed: 0, total: 0 });
 
-  const provider: ProviderType = isRemoteOrApple ? (selectedModelPath as ProviderType) : 'local';
+      const provider: ProviderType = isRemoteOrApple ? (selectedModelPath as ProviderType) : 'local';
         await RAGService.initialize(provider);
 
         if (!RAGService.isReady()) {
@@ -705,7 +724,7 @@ export default function ChatInput({
     }
 
     if (!checkMultimodalSupport()) {
-      const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
+      const isOnlineModel = isOnlineProvider(selectedModelPath);
       if (!isOnlineModel) {
         showMmProjSelector('camera');
         return;
@@ -739,7 +758,7 @@ export default function ChatInput({
         const file = result.assets[0];
         
         if (isImageFile(file.name) && !checkMultimodalSupport()) {
-          const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
+          const isOnlineModel = isOnlineProvider(selectedModelPath);
           if (!isOnlineModel) {
             setPendingFileForMultimodal({
               uri: file.uri,

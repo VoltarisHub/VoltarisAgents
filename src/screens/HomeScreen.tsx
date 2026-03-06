@@ -24,7 +24,7 @@ import { RootStackParamList, TabParamList } from '../types/navigation';
 import chatManager, { Chat, ChatMessage } from '../utils/ChatManager';
 import ChatView from '../components/chat/ChatView';
 import ChatInput from '../components/chat/ChatInput';
-import { onlineModelService } from '../services/OnlineModelService';
+import { onlineModelService, OnlineModelService } from '../services/OnlineModelService';
 import { useModel } from '../context/ModelContext';
 import { Dialog, Portal, Button, Text as PaperText } from 'react-native-paper';
 import { useRemoteModel } from '../context/RemoteModelContext';
@@ -57,6 +57,14 @@ type HomeScreenProps = {
 };
 
 const remoteProviders: ProviderType[] = ['gemini', 'chatgpt', 'deepseek', 'claude'];
+
+const isRemoteProvider = (provider: string | null): boolean => {
+  if (!provider) {
+    return false;
+  }
+  const baseProvider = OnlineModelService.getBaseProvider(provider);
+  return remoteProviders.includes(baseProvider as ProviderType);
+};
 
 export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const { theme: currentTheme, selectedTheme } = useTheme();
@@ -236,7 +244,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       return;
     }
 
-    if (selectedModelPath && remoteProviders.includes(selectedModelPath as ProviderType)) {
+    if (isRemoteProvider(selectedModelPath)) {
       setActiveProvider(selectedModelPath as ProviderType);
       chatManager.setCurrentProvider(selectedModelPath as ProviderType);
       return;
@@ -327,7 +335,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
 
     const providerFromSelection = selectedModelPath === 'apple-foundation'
       ? 'apple-foundation'
-      : selectedModelPath && remoteProviders.includes(selectedModelPath as ProviderType)
+      : isRemoteProvider(selectedModelPath)
         ? (selectedModelPath as ProviderType)
         : null;
     const effectiveProvider = activeProvider || providerFromSelection;
