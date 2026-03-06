@@ -103,13 +103,6 @@ const licenses: License[] = [
     repositoryUrl: 'https://github.com/douglasjunior/react-native-pdf-renderer'
   },
   {
-    name: 'react-native-pdf-page-image',
-    description: 'Convert PDF pages to images in React Native',
-    licenseType: 'MIT License',
-    licenseUrl: 'https://github.com/jesusbmx/react-native-pdf-page-image/blob/master/LICENSE',
-    repositoryUrl: 'https://github.com/jesusbmx/react-native-pdf-page-image'
-  },
-  {
     name: 'react-native-qrcode-styled',
     description: 'Customizable QR code generator for React Native',
     licenseType: 'MIT License',
