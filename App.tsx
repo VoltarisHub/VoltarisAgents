@@ -23,7 +23,6 @@ import { notificationService } from './src/services/NotificationService';
 import { initializeFirebase } from './src/services/FirebaseAuth';
 import { initGeminiService } from './src/services/GeminiInitializer';
 import { initOpenAIService } from './src/services/OpenAIInitializer';
-import { initDeepSeekService } from './src/services/DeepSeekInitializer';
 import { initClaudeService } from './src/services/ClaudeInitializer';
 import { PaperProvider } from 'react-native-paper';
 import { DialogProvider } from './src/context/DialogContext';
@@ -47,7 +46,6 @@ const initializeServices = async () => {
   
   initGeminiService();
   initOpenAIService();
-  initDeepSeekService();
   initClaudeService();
 };
 

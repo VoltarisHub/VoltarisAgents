@@ -23,7 +23,7 @@ export interface ModelInfo {
   currentModelPath: string | null;
 }
 
-export type ProviderType = 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | 'apple-foundation' | string;
+export type ProviderType = 'local' | 'gemini' | 'chatgpt' | 'claude' | 'apple-foundation' | string;
 
 export class ModelManagementService {
   
@@ -101,7 +101,7 @@ export class ModelManagementService {
         setActiveProvider('gemini');
         setSelectedModelPath('gemini');
         chatManager.setCurrentProvider('gemini');
-      } else if (model === 'chatgpt' || model === 'deepseek' || model === 'claude' || OnlineModelService.isClone(model)) {
+      } else if (model === 'chatgpt' || model === 'claude' || OnlineModelService.isClone(model)) {
         await unloadModel(true);
         setActiveProvider(model);
         setSelectedModelPath(model);
@@ -127,9 +127,6 @@ export class ModelManagementService {
       iconName = "cloud";
     } else if (activeProvider === 'chatgpt') {
       modelName = 'gpt-4.1';
-      iconName = "cloud";
-    } else if (activeProvider === 'deepseek') {
-      modelName = 'deepseek-r1';
       iconName = "cloud";
     } else if (activeProvider === 'claude') {
       modelName = 'Claude';

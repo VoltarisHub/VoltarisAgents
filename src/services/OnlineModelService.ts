@@ -1,7 +1,6 @@
 import EventEmitter from 'eventemitter3';
 import { GeminiService } from './GeminiService';
 import { OpenAIService } from './OpenAIService';
-import { DeepSeekService } from './DeepSeekService';
 import { ClaudeService } from './ClaudeService';
 import Constants from 'expo-constants';
 import providerKeyStorage from '../utils/ProviderKeyStorage';
@@ -36,18 +35,15 @@ export class OnlineModelService {
   private events = new EventEmitter<OnlineModelServiceEvents>();
   private _geminiServiceGetter: () => GeminiService | null = () => null;
   private _openAIServiceGetter: () => OpenAIService | null = () => null;
-  private _deepSeekServiceGetter: () => DeepSeekService | null = () => null;
   private _claudeServiceGetter: () => ClaudeService | null = () => null;
   private defaultKeys = {
     gemini: Constants.expoConfig?.extra?.GEMINI_API_KEY || '',
     chatgpt: Constants.expoConfig?.extra?.OPENAI_API_KEY || '',
-    deepseek: Constants.expoConfig?.extra?.DEEPSEEK_API_KEY || '',
     claude: Constants.expoConfig?.extra?.ANTHROPIC_API_KEY || '',
   };
   private defaultUrls: Record<string, string> = {
     gemini: 'https://generativelanguage.googleapis.com/v1beta',
     chatgpt: 'https://api.openai.com/v1',
-    deepseek: 'https://api.deepseek.com',
     claude: 'https://api.anthropic.com/v1'
   };
   private isInitialized = false;
@@ -68,10 +64,6 @@ export class OnlineModelService {
   
   setOpenAIServiceGetter(getter: () => OpenAIService) {
     this._openAIServiceGetter = getter;
-  }
-  
-  setDeepSeekServiceGetter(getter: () => DeepSeekService) {
-    this._deepSeekServiceGetter = getter;
   }
   
   setClaudeServiceGetter(getter: () => ClaudeService) {
@@ -247,7 +239,6 @@ export class OnlineModelService {
     const defaults: Record<string, string> = {
       gemini: 'gemini-2.5-flash',
       chatgpt: 'gpt-4.1',
-      deepseek: 'deepseek-reasoner',
       claude: 'claude-sonnet-4-5'
     };
     return defaults[base] || '';
@@ -431,39 +422,6 @@ export class OnlineModelService {
     return fullResponse;
   }
   
-  async sendMessageToDeepSeek(
-    messages: ChatMessage[],
-    options: OnlineModelRequestOptions = {},
-    onToken?: (token: string) => boolean | void,
-    provider = 'deepseek'
-  ): Promise<string> {
-    const deepSeekService = this._deepSeekServiceGetter();
-    if (!deepSeekService) {
-      throw new Error('DeepSeekService not initialized');
-    }
-    
-    const configuredModel = await this.getModelName(provider);
-    const modelToUse = configuredModel || this.getDefaultModelName(provider);
-    
-    const deepSeekOptions = {
-      ...options,
-      model: options.model || modelToUse,
-      streamTokens: options.streamTokens !== false
-    };
-    
-    const streamEnabled = options.stream === true && typeof onToken === 'function';
-    
-    
-    const { fullResponse } = await deepSeekService.generateResponse(
-      messages, 
-      deepSeekOptions, 
-      streamEnabled ? onToken : undefined,
-      provider
-    );
-    
-    return fullResponse;
-  }
-  
   async sendMessageToClaude(
     messages: ChatMessage[],
     options: OnlineModelRequestOptions = {},
@@ -509,8 +467,6 @@ export class OnlineModelService {
         return this.sendMessageToGemini(messages, options, onToken, provider);
       case 'chatgpt':
         return this.sendMessageToOpenAI(messages, options, onToken, provider);
-      case 'deepseek':
-        return this.sendMessageToDeepSeek(messages, options, onToken, provider);
       case 'claude':
         return this.sendMessageToClaude(messages, options, onToken, provider);
       default:
