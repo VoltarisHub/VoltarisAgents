@@ -94,6 +94,26 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "tags": ["recommended", "fastest"]
   },
   {
+    "name": "Qwen3.5 0.8B Instruct",
+    "description": "Latest compact Qwen 3.5 instruct model optimized for low-memory on-device usage.",
+    "size": "0.53 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
+    "modelFamily": "800 Million",
+    "quantization": "Q4_K_M",
+    "tags": ["fastest"]
+  },
+  {
+    "name": "Qwen3.5 2B Instruct",
+    "description": "Latest Qwen 3.5 instruct model balancing speed and quality for mobile devices.",
+    "size": "1.28 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/main/Qwen3.5-2B-Q4_K_M.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
+    "modelFamily": "2 Billion",
+    "quantization": "Q4_K_M",
+    "tags": ["fastest"]
+  },
+  {
     "name": "SmolVLM2 500M Video Instruct",
     "description": "Ultra-compact vision-language model with 500M parameters specialized for visual understanding and instruction following.",
     "size": "1.02 GB",
@@ -171,6 +191,16 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
     "modelFamily": "4 Billion",
     "quantization": "Q5_K_M",
+    "tags": ["recommended"]
+  },
+  {
+    "name": "Qwen3.5 4B Instruct",
+    "description": "Latest Qwen 3.5 instruct model with stronger reasoning and instruction following.",
+    "size": "2.74 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
+    "modelFamily": "4 Billion",
+    "quantization": "Q4_K_M",
     "tags": ["recommended"]
   },
   {
@@ -304,6 +334,16 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "licenseLink": "https://ai.google.dev/gemma/terms",
     "modelFamily": "9 Billion",
     "quantization": "Q4_K_M"
+  },
+  {
+    "name": "Qwen3.5 9B Instruct",
+    "description": "Latest Qwen 3.5 9B instruct model for higher quality responses and reasoning.",
+    "size": "5.68 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/Qwen3.5-9B-Q4_K_M.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
+    "modelFamily": "9 Billion",
+    "quantization": "Q4_K_M",
+    "tags": ["reasoning"]
   },
   {
     "name": "Phi-4 Reasoning Plus",
