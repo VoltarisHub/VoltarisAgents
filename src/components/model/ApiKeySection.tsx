@@ -40,7 +40,11 @@ const BASE_PROVIDERS = [
   { id: 'claude', name: 'Claude API', placeholder: 'Enter your Claude API key', url: 'https://www.anthropic.com' },
 ];
 
-const ApiKeySection: React.FC = () => {
+type ApiKeySectionProps = {
+  onInputFocus?: (target: number | null) => void;
+};
+
+const ApiKeySection: React.FC<ApiKeySectionProps> = ({ onInputFocus }) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const [isLoadingApiKeys, setIsLoadingApiKeys] = useState(false);
@@ -60,6 +64,10 @@ const ApiKeySection: React.FC = () => {
   };
 
   const hideDialog = () => setDialogVisible(false);
+
+  const handleInputFocus = (event: any) => {
+    onInputFocus?.(event?.nativeEvent?.target ?? null);
+  };
 
   useEffect(() => {
     loadApiKeys();
@@ -388,6 +396,7 @@ const ApiKeySection: React.FC = () => {
                     placeholderTextColor={themeColors.secondaryText}
                     value={item.name}
                     onChangeText={(text) => updateDisplayName(item.id, text)}
+                    onFocus={handleInputFocus}
                     autoCapitalize="none"
                   />
                 </View>
@@ -413,6 +422,7 @@ const ApiKeySection: React.FC = () => {
                     placeholderTextColor={themeColors.secondaryText}
                     value={item.key}
                     onChangeText={(text) => updateApiKey(item.id, text)}
+                    onFocus={handleInputFocus}
                     autoCapitalize="none"
                     secureTextEntry={!keyVisibility[item.id]}
                   />
@@ -434,6 +444,7 @@ const ApiKeySection: React.FC = () => {
                   placeholderTextColor={themeColors.secondaryText}
                   value={item.modelName}
                   onChangeText={(text) => updateModelName(item.id, text)}
+                  onFocus={handleInputFocus}
                   autoCapitalize="none"
                 />
               </View>
@@ -446,6 +457,7 @@ const ApiKeySection: React.FC = () => {
                   placeholderTextColor={themeColors.secondaryText}
                   value={item.baseUrl}
                   onChangeText={(text) => updateBaseUrl(item.id, text)}
+                  onFocus={handleInputFocus}
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="url"

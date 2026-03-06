@@ -212,6 +212,36 @@ export class OnlineModelService {
     }
   }
 
+  async getSystemInstruction(provider: string): Promise<string | null> {
+    try {
+      await this.ensureInitialized();
+      const record = await providerKeyStorage.getEntry(provider);
+      return record?.systemInstruction || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  async saveSystemInstruction(provider: string, instruction: string): Promise<boolean> {
+    try {
+      await this.ensureInitialized();
+      await providerKeyStorage.upsertEntry(provider, { systemInstruction: instruction });
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async clearSystemInstruction(provider: string): Promise<boolean> {
+    try {
+      await this.ensureInitialized();
+      await providerKeyStorage.upsertEntry(provider, { systemInstruction: null });
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
   getDefaultModelName(provider: string): string {
     const base = OnlineModelService.getBaseProvider(provider);
     const defaults: Record<string, string> = {
