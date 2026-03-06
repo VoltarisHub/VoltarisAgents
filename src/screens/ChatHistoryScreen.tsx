@@ -111,6 +111,16 @@ export default function ChatHistoryScreen() {
     return firstUserMessage?.content || chat.title || 'New conversation';
   };
 
+  const getLastResponderModel = (chat: Chat) => {
+    for (let index = chat.messages.length - 1; index >= 0; index -= 1) {
+      const message = chat.messages[index];
+      if (message.role === 'assistant' && message.modelName) {
+        return message.modelName;
+      }
+    }
+    return null;
+  };
+
   const handleDeleteChat = (chatId: string) => {
     showDialog(
       'Delete Chat',
@@ -157,7 +167,10 @@ export default function ChatHistoryScreen() {
     });
   };
 
-  const renderItem = ({ item }: { item: Chat }) => (
+  const renderItem = ({ item }: { item: Chat }) => {
+    const lastResponderModel = getLastResponderModel(item);
+
+    return (
     <TouchableOpacity
       style={[
         styles.chatItem, 
@@ -177,6 +190,11 @@ export default function ChatHistoryScreen() {
           {new Date(item.timestamp).toLocaleDateString()} • 
           {item.messages.length} messages
         </Text>
+        {lastResponderModel ? (
+          <Text style={[styles.chatModel, { color: themeColors.secondaryText }]} numberOfLines={1}>
+            {lastResponderModel}
+          </Text>
+        ) : null}
         {chatManager.getBranchCount(item.id) > 0 ? (
           <View style={styles.branchBadge}>
             <MaterialCommunityIcons name="source-branch" size={14} color={themeColors.secondaryText} />
@@ -197,7 +215,8 @@ export default function ChatHistoryScreen() {
         <MaterialCommunityIcons name="chevron-right" size={24} color={themeColors.secondaryText} />
       </View>
     </TouchableOpacity>
-  );
+    );
+  };
 
   const headerRightButtons = (
     <>
@@ -318,6 +337,10 @@ const styles = StyleSheet.create({
   },
   chatDate: {
     fontSize: 14,
+  },
+  chatModel: {
+    fontSize: 12,
+    marginTop: 2,
   },
   chatActions: {
     flexDirection: 'row',

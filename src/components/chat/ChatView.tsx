@@ -28,6 +28,7 @@ export type Message = {
   id: string;
   content: string;
   role: 'user' | 'assistant' | 'system';
+  modelName?: string;
   thinking?: string;
   stats?: {
     duration: number;
@@ -472,7 +473,7 @@ export default function ChatView({
         ]}>
           <View style={styles.messageHeader}>
             <Text style={[styles.roleLabel, { color: item.role === 'user' ? '#fff' : themeColors.text }]}>
-              {item.role === 'user' ? 'You' : 'Model'}
+              {item.role === 'user' ? 'You' : (item.modelName || 'Model')}
             </Text>
             <View style={styles.messageHeaderActions}>
               {item.role === 'user' ? (
