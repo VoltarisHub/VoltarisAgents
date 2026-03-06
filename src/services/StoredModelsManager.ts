@@ -91,6 +91,42 @@ export class StoredModelsManager extends EventEmitter {
     return { size, fileCount };
   }
 
+  private async collectModelFiles(baseDir: string): Promise<Array<{ name: string; path: string; size: number }>> {
+    const files: Array<{ name: string; path: string; size: number }> = [];
+
+    const walk = async (currentDir: string, relativeDir: string): Promise<void> => {
+      const entries = await FileSystem.readDirectoryAsync(currentDir);
+
+      for (const entry of entries) {
+        if (!relativeDir && entry === 'mlx') {
+          continue;
+        }
+
+        const fullPath = `${currentDir}/${entry}`;
+        const relativePath = relativeDir ? `${relativeDir}/${entry}` : entry;
+        const info = await FileSystem.getInfoAsync(fullPath, { size: true });
+
+        if (!info.exists) {
+          continue;
+        }
+
+        if (info.isDirectory) {
+          await walk(fullPath, relativePath);
+          continue;
+        }
+
+        files.push({
+          name: relativePath,
+          path: fullPath,
+          size: (info as any).size || 0,
+        });
+      }
+    };
+
+    await walk(baseDir, '');
+    return files;
+  }
+
   private async confirmFilesExist(models: StoredModel[]): Promise<StoredModel[]> {
     const result: StoredModel[] = [];
     for (const model of models) {
@@ -186,27 +222,17 @@ export class StoredModelsManager extends EventEmitter {
         }
 
         console.log('reading_directory');
-        const dir = await FileSystem.readDirectoryAsync(baseDir);
-        console.log('files_found', dir.length);
+        const discoveredFiles = await this.collectModelFiles(baseDir);
+        console.log('files_found', discoveredFiles.length);
 
         const models: StoredModel[] = [];
-        
-        if (dir.length > 0) {
+        if (discoveredFiles.length > 0) {
           console.log('processing_files');
-          for (const name of dir) {
+          for (const file of discoveredFiles) {
             try {
-              const path = `${baseDir}/${name}`;
-              const fileInfo = await FileSystem.getInfoAsync(path, { size: true });
-              
-              if ((fileInfo as any).isDirectory) {
-                continue;
-              }
-              
-              if (!fileInfo.exists) {
-                continue;
-              }
-
-              const size = (fileInfo as any).size || 0;
+              const name = file.name;
+              const path = file.path;
+              const size = file.size;
               const modified = new Date().toISOString();
 
               const capabilities = detectVisionCapabilities(name);
@@ -543,24 +569,18 @@ export class StoredModelsManager extends EventEmitter {
       const storedPaths = new Set(storedModels.map(m => m.path));
       
       const baseDir = this.fileManager.getBaseDir();
-      const files = await FileSystem.readDirectoryAsync(baseDir);
+      const files = await this.collectModelFiles(baseDir);
       
-      for (const name of files) {
-        const filePath = `${baseDir}/${name}`;
-        if (storedPaths.has(filePath)) {
+      for (const file of files) {
+        if (storedPaths.has(file.path)) {
           continue;
         }
-        
-        const info = await FileSystem.getInfoAsync(filePath, { size: true });
-        if (!info.exists || (info as any).isDirectory) {
-          continue;
-        }
-        
+
         try {
-          await this.registerModel(name, filePath, (info as any).size || 0);
-          console.log('auto_registered', name);
+          await this.registerModel(file.name, file.path, file.size);
+          console.log('auto_registered', file.name);
         } catch {
-          console.log('register_skipped', name);
+          console.log('register_skipped', file.name);
         }
       }
     } catch (error) {
