@@ -13,7 +13,6 @@ import { LlamaRnEmbeddings } from './LlamaRnEmbeddings';
 import { AppleRagEmbeddings } from './AppleRagEmbeddings';
 import { OpenAIEmbeddings } from './OpenAIEmbeddings';
 import { GeminiEmbeddings } from './GeminiEmbeddings';
-import { DeepSeekEmbeddings } from './DeepSeekEmbeddings';
 import { ClaudeEmbeddings } from './ClaudeEmbeddings';
 import { LlamaRnLLM } from './LlamaRnLLM';
 import { OnlineModelLLM } from './OnlineModelLLM';
@@ -116,7 +115,6 @@ class RAGServiceClass {
     const isRemote =
       resolvedProvider === 'gemini' ||
       resolvedProvider === 'chatgpt' ||
-      resolvedProvider === 'deepseek' ||
       resolvedProvider === 'claude';
     const isAppleFoundation = resolvedProvider === 'apple-foundation';
 
@@ -139,7 +137,7 @@ class RAGServiceClass {
     if (isAppleFoundation) {
       this.llm = new AppleFoundationLLM();
     } else if (isRemote) {
-      const remoteProvider = resolvedProvider as 'gemini' | 'chatgpt' | 'deepseek' | 'claude';
+      const remoteProvider = resolvedProvider as 'gemini' | 'chatgpt' | 'claude';
       this.llm = new OnlineModelLLM(remoteProvider);
     } else {
       this.llm = new LlamaRnLLM();
@@ -479,8 +477,6 @@ class RAGServiceClass {
     switch (provider) {
       case 'gemini':
         return new GeminiEmbeddings();
-      case 'deepseek':
-        return new DeepSeekEmbeddings();
       case 'claude':
         return new ClaudeEmbeddings();
       case 'chatgpt':

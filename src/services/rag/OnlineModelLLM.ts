@@ -4,11 +4,11 @@ import { onlineModelService } from '../OnlineModelService';
 import type { ProviderType } from '../ModelManagementService';
 
 export class OnlineModelLLM implements LLM {
-  private provider: 'gemini' | 'chatgpt' | 'deepseek' | 'claude';
+  private provider: 'gemini' | 'chatgpt' | 'claude';
   private loaded = false;
   private settings?: any;
 
-  constructor(provider: 'gemini' | 'chatgpt' | 'deepseek' | 'claude') {
+  constructor(provider: 'gemini' | 'chatgpt' | 'claude') {
     this.provider = provider;
   }
 
@@ -71,9 +71,6 @@ export class OnlineModelLLM implements LLM {
           break;
         case 'chatgpt':
           await onlineModelService.sendMessageToOpenAI(messageParams, apiParams, streamCallback);
-          break;
-        case 'deepseek':
-          await onlineModelService.sendMessageToDeepSeek(messageParams, apiParams, streamCallback);
           break;
         case 'claude':
           await onlineModelService.sendMessageToClaude(messageParams, apiParams, streamCallback);

@@ -16,7 +16,7 @@ type Context = {
   respond: JsonResponder;
 };
 
-const REMOTE_PROVIDERS: RemoteProvider[] = ['gemini', 'chatgpt', 'deepseek', 'claude'];
+const REMOTE_PROVIDERS: RemoteProvider[] = ['gemini', 'chatgpt', 'claude'];
 const REMOTE_MODELS_PREF_KEY = 'remote_models_enabled';
 
 function normalizeRemoteProvider(value: any): RemoteProvider | null {
@@ -43,10 +43,6 @@ function normalizeRemoteProvider(value: any): RemoteProvider | null {
 
   if (normalized.startsWith('gemini')) {
     return 'gemini';
-  }
-
-  if (normalized.startsWith('deepseek')) {
-    return 'deepseek';
   }
 
   return null;
@@ -99,8 +95,6 @@ function getRemoteProviderLabel(provider: RemoteProvider): string {
       return 'Gemini';
     case 'chatgpt':
       return 'OpenAI';
-    case 'deepseek':
-      return 'DeepSeek';
     case 'claude':
       return 'Anthropic Claude';
     default:

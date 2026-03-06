@@ -13,9 +13,9 @@ import type { AppleFoundationMessage } from '../../AppleFoundationService';
 import { onlineModelService } from '../../OnlineModelService';
 import type { ChatMessage as RemoteChatMessage, OnlineModelRequestOptions } from '../../OnlineModelService';
 
-type RemoteProvider = 'gemini' | 'chatgpt' | 'deepseek' | 'claude';
+type RemoteProvider = 'gemini' | 'chatgpt' | 'claude';
 
-const REMOTE_PROVIDERS: RemoteProvider[] = ['gemini', 'chatgpt', 'deepseek', 'claude'];
+const REMOTE_PROVIDERS: RemoteProvider[] = ['gemini', 'chatgpt', 'claude'];
 const REMOTE_MODELS_PREF_KEY = 'remote_models_enabled';
 
 async function remoteModelsEnabled(): Promise<boolean> {
@@ -254,8 +254,6 @@ async function sendRemoteMessage(
       return onlineModelService.sendMessageToGemini(messages, options, onToken);
     case 'chatgpt':
       return onlineModelService.sendMessageToOpenAI(messages, options, onToken);
-    case 'deepseek':
-      return onlineModelService.sendMessageToDeepSeek(messages, options, onToken);
     case 'claude':
       return onlineModelService.sendMessageToClaude(messages, options, onToken);
     default:

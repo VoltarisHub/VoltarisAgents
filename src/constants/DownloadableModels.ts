@@ -183,16 +183,6 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "quantization": "Q4_K_S",
   },
   {
-    "name": "DeepSeek-R1 Distill Qwen",
-    "description": "Highly optimized distillation of DeepSeek's R1 model using Qwen architecture for improved efficiency.",
-    "size": "1.89 GB",
-    "huggingFaceLink": "https://huggingface.co/unsloth/DeepSeek-R1-Distill-Qwen-1.5B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-1.5B-Q8_0.gguf",
-    "licenseLink": "https://github.com/deepseek-ai/DeepSeek-LLM/blob/main/LICENSE-MODEL",
-    "modelFamily": "1.5 Billion",
-    "quantization": "Q8_0",
-    "tags": ["fastest"]
-  },
-  {
     "name": "Phi-3 Mini Instruct",
     "description": "Microsoft's compact instruction-tuned model with strong reasoning capabilities despite its small size.",
     "size": "2.2 GB",
@@ -242,25 +232,6 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "quantization": "Q3_K_S"
   },
   {
-    "name": "DeepSeek-R1 Distill Llama",
-    "description": "Distilled version of DeepSeek's R1 model with balanced performance and efficiency.",
-    "size": "3.8 GB",
-    "huggingFaceLink": "https://huggingface.co/unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF/resolve/main/DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf",
-    "licenseLink": "https://github.com/deepseek-ai/DeepSeek-LLM/blob/main/LICENSE-MODEL",
-    "modelFamily": "7 Billion",
-    "quantization": "Q4_K_M"
-  },
-  {
-    "name": "DeepSeek-R1-0528 Qwen3 8B",
-    "description": "Latest DeepSeek R1 reasoning model based on Qwen3 architecture with enhanced logical thinking capabilities.",
-    "size": "4.8 GB",
-    "huggingFaceLink": "https://huggingface.co/unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF/resolve/main/DeepSeek-R1-0528-Qwen3-8B-Q4_K_M.gguf",
-    "licenseLink": "https://github.com/deepseek-ai/DeepSeek-LLM/blob/main/LICENSE-MODEL",
-    "modelFamily": "8 Billion",
-    "quantization": "Q4_K_M",
-    "tags": ["reasoning"]
-  },
-  {
     "name": "Mistral Instruct",
     "description": "Instruction-tuned version of Mistral's powerful base model with excellent reasoning abilities.",
     "size": "4.1 GB",
@@ -270,15 +241,6 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "quantization": "Q4_K_M"
   },
   {
-    "name": "DeepSeek Base",
-    "description": "Foundation model from DeepSeek trained on diverse data with strong general capabilities.",
-    "size": "4.6 GB",
-    "huggingFaceLink": "https://huggingface.co/TheBloke/deepseek-llm-7B-base-GGUF/resolve/main/deepseek-llm-7b-base.Q4_K_S.gguf",
-    "licenseLink": "https://github.com/deepseek-ai/DeepSeek-LLM/blob/main/LICENSE-MODEL",
-    "modelFamily": "8 Billion",
-    "quantization": "Q4_K_S"
-  },
-  {
     "name": "LLaMA 3.1 Instruct",
     "description": "Meta's latest instruction-tuned model with improved reasoning and instruction following.",
     "size": "4.7 GB",
@@ -286,15 +248,6 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "licenseLink": "https://ai.meta.com/llama/license/",
     "modelFamily": "8 Billion",
     "quantization": "Q4_K_M"
-  },
-  {
-    "name": "DeepSeek Coder Instruct",
-    "description": "Specialized coding assistant trained on high-quality programming data with instruction tuning.",
-    "size": "4.8 GB",
-    "huggingFaceLink": "https://huggingface.co/TheBloke/deepseek-coder-6.7B-instruct-GGUF/resolve/main/deepseek-coder-6.7b-instruct-Q6_K.gguf",
-    "licenseLink": "https://github.com/deepseek-ai/DeepSeek-LLM/blob/main/LICENSE-MODEL",
-    "modelFamily": "6.7 Billion",
-    "quantization": "Q6_K"
   },
   {
     "name": "CodeGemma Instruct",

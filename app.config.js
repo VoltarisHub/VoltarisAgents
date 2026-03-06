@@ -103,7 +103,6 @@ export default {
     extra: {
       GEMINI_API_KEY: process.env.GEMINI_API_KEY,
       OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-      DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
       HUGGINGFACE_TOKEN: process.env.HUGGINGFACE_TOKEN,
       GOOGLE_SIGN_IN_WEB_CLIENT_ID: process.env.GOOGLE_SIGN_IN_WEB_CLIENT_ID,
