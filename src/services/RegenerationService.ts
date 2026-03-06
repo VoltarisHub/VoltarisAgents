@@ -1,7 +1,7 @@
 import { ChatMessage } from '../utils/ChatManager';
 import { llamaManager } from '../utils/LlamaManager';
 import { engineService } from './inference-engine-service';
-import { onlineModelService } from './OnlineModelService';
+import { onlineModelService, OnlineModelService } from './OnlineModelService';
 import chatManager from '../utils/ChatManager';
 import { generateRandomId } from '../utils/homeScreenUtils';
 import { appleFoundationService } from './AppleFoundationService';
@@ -114,12 +114,12 @@ export class RegenerationService {
     let firstTokenTime: number | null = null;
     
     try {
-      const isOnlineModel = validProvider === 'gemini' || validProvider === 'chatgpt' || validProvider === 'deepseek' || validProvider === 'claude';
+      const isOnlineModel = !!validProvider && ['gemini','chatgpt','deepseek','claude'].includes(OnlineModelService.getBaseProvider(validProvider));
       const isAppleFoundation = validProvider === 'apple-foundation';
 
       if (isOnlineModel) {
         await this.processOnlineRegeneration(
-          validProvider as 'gemini' | 'chatgpt' | 'deepseek' | 'claude',
+          validProvider,
           newMessages,
           settings,
           assistantMessage,
@@ -166,7 +166,7 @@ export class RegenerationService {
   }
 
   private async processOnlineRegeneration(
-    validProvider: 'gemini' | 'chatgpt' | 'deepseek' | 'claude',
+    validProvider: string,
     newMessages: ChatMessage[],
     settings: any,
     assistantMessage: ChatMessage,
@@ -240,31 +240,10 @@ export class RegenerationService {
     };
 
     try {
-      switch (validProvider) {
-        case 'gemini':
-          await onlineModelService.sendMessageToGemini(messageParams, apiParams, streamCallback);
-          break;
-        case 'chatgpt':
-          await onlineModelService.sendMessageToOpenAI(messageParams, apiParams, streamCallback);
-          break;
-        case 'deepseek':
-          await onlineModelService.sendMessageToDeepSeek(messageParams, apiParams, streamCallback);
-          break;
-        case 'claude':
-          await onlineModelService.sendMessageToClaude(messageParams, apiParams, streamCallback);
-          break;
-        default:
-          const finalMessage: ChatMessage = {
-            ...assistantMessage,
-            content: `This model provider (${validProvider}) is not yet implemented.`,
-            stats: { duration: 0, tokens: 0 }
-          };
-          
-          const finalMessages = [...newMessages, finalMessage];
-          this.callbacks.setMessages(finalMessages);
-          this.callbacks.saveMessages(finalMessages);
-          return;
-      }
+      await onlineModelService.sendMessage(validProvider, messageParams, apiParams, streamCallback);
+    } catch (error) {
+      throw error;
+    }
       
       if (!this.cancelGenerationRef.current) {
         let finalAvgTokenTime = undefined;

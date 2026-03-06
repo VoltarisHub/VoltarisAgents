@@ -1,6 +1,6 @@
 import { ChatMessage } from '../utils/ChatManager';
 import { engineService } from './inference-engine-service';
-import { onlineModelService } from './OnlineModelService';
+import { onlineModelService, OnlineModelService } from './OnlineModelService';
 import chatManager from '../utils/ChatManager';
 import { generateRandomId } from '../utils/homeScreenUtils';
 import { appleFoundationService } from './AppleFoundationService';
@@ -43,7 +43,7 @@ export class MessageProcessingService {
       this.callbacks.setIsRegenerating(true);
       
       const currentMessages = currentChat.messages;
-  const isOnlineModel = activeProvider === 'gemini' || activeProvider === 'chatgpt' || activeProvider === 'deepseek' || activeProvider === 'claude';
+      const isOnlineModel = !!activeProvider && ['gemini','chatgpt','deepseek','claude'].includes(OnlineModelService.getBaseProvider(activeProvider));
   const isAppleFoundation = activeProvider === 'apple-foundation';
       
       const systemPrompt = settings.systemPrompt || 'You are a helpful AI assistant.';
@@ -141,7 +141,7 @@ export class MessageProcessingService {
   }
 
   private async processOnlineModel(
-    activeProvider: 'gemini' | 'chatgpt' | 'deepseek' | 'claude',
+    activeProvider: string,
     processedMessages: any[],
     settings: any,
     messageId: string,
@@ -314,28 +314,7 @@ export class MessageProcessingService {
     };
 
     try {
-      switch (activeProvider) {
-        case 'gemini':
-          await onlineModelService.sendMessageToGemini(messageParams, apiParams, legacyStreamCallback);
-          break;
-        case 'chatgpt':
-          await onlineModelService.sendMessageToOpenAI(messageParams, apiParams, legacyStreamCallback);
-          break;
-        case 'deepseek':
-          await onlineModelService.sendMessageToDeepSeek(messageParams, apiParams, legacyStreamCallback);
-          break;
-        case 'claude':
-          await onlineModelService.sendMessageToClaude(messageParams, apiParams, legacyStreamCallback);
-          break;
-        default:
-          await chatManager.updateMessageContent(
-            messageId,
-            `This model provider (${activeProvider}) is not yet implemented.`,
-            '',
-            { duration: 0, tokens: 0 }
-          );
-          return;
-      }
+      await onlineModelService.sendMessage(activeProvider, messageParams, apiParams, legacyStreamCallback);
     } catch (error) {
       this.callbacks.handleApiError(error, this.getProviderDisplayName(activeProvider));
       
@@ -791,7 +770,8 @@ export class MessageProcessingService {
   }
 
   private getProviderDisplayName(provider: string): 'Gemini' | 'OpenAI' | 'DeepSeek' | 'Claude' {
-    switch (provider) {
+    const base = OnlineModelService.getBaseProvider(provider);
+    switch (base) {
       case 'gemini': return 'Gemini';
       case 'chatgpt': return 'OpenAI';
       case 'deepseek': return 'DeepSeek';
