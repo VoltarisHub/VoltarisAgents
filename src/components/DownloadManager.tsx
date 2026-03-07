@@ -9,7 +9,8 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
-import { Dialog, Portal, PaperProvider, Text, Button } from 'react-native-paper';
+import { PaperProvider, Text, Button } from 'react-native-paper';
+import Dialog, { Portal } from './Dialog';
 
 interface DownloadInfo {
   id: number;

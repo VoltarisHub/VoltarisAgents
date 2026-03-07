@@ -3,7 +3,8 @@ import { ScrollView, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import DownloadableModelItem, { DownloadableModel } from './DownloadableModelItem';
 import { modelDownloader } from '../../services/ModelDownloader';
-import { Dialog, Portal, PaperProvider, Text, Button } from 'react-native-paper';
+import { PaperProvider, Text, Button } from 'react-native-paper';
+import Dialog, { Portal } from '../Dialog';
 
 interface DownloadableModelListProps {
   models: DownloadableModel[];

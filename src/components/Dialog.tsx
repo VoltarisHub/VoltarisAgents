@@ -2,19 +2,24 @@ import React from 'react';
 import {
   Modal,
   StyleSheet,
+  StyleProp,
   Text,
+  TextStyle,
   TouchableOpacity,
   TouchableWithoutFeedback,
+  ViewStyle,
   View,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 
-interface GlobalDialogProps {
+interface DialogProps {
   visible: boolean;
-  onClose: () => void;
-  title: string;
+  onClose?: () => void;
+  onDismiss?: () => void;
+  style?: StyleProp<ViewStyle>;
+  title?: string;
   description?: string;
   points?: string[];
   iconName?: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
@@ -35,9 +40,32 @@ interface GlobalDialogProps {
   children?: React.ReactNode;
 }
 
-const GlobalDialog: React.FC<GlobalDialogProps> = ({
+interface DialogTitleProps {
+  children?: React.ReactNode;
+  style?: StyleProp<TextStyle>;
+}
+
+interface DialogContentProps {
+  children?: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+}
+
+interface DialogActionsProps {
+  children?: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+}
+
+type DialogComponent = React.FC<DialogProps> & {
+  Title: React.FC<DialogTitleProps>;
+  Content: React.FC<DialogContentProps>;
+  Actions: React.FC<DialogActionsProps>;
+};
+
+const AppDialog = (({
   visible,
   onClose,
+  onDismiss,
+  style,
   title,
   description,
   points = [],
@@ -57,14 +85,22 @@ const GlobalDialog: React.FC<GlobalDialogProps> = ({
   dismissOnBackdropPress = false,
   maxWidth = 400,
   children,
-}) => {
+}: DialogProps) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const hasDualButtons = !!primaryButtonText && !!secondaryButtonText;
+  const close = onClose || onDismiss;
   const defaultSecondaryBg =
     currentTheme === 'light' ? themeColors.secondaryText : themeColors.cardBackground;
   const defaultSecondaryText =
     currentTheme === 'light' ? '#fff' : themeColors.text;
+  const isManagedDialog =
+    !!iconName ||
+    !!title ||
+    !!description ||
+    points.length > 0 ||
+    hasDualButtons ||
+    buttonText !== undefined;
 
   if (!visible) return null;
 
@@ -73,11 +109,11 @@ const GlobalDialog: React.FC<GlobalDialogProps> = ({
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={close}
     >
       <View style={styles.modalOverlay}>
         <TouchableWithoutFeedback
-          onPress={dismissOnBackdropPress ? onClose : undefined}
+          onPress={dismissOnBackdropPress ? close : undefined}
         >
           <View style={styles.backdrop} />
         </TouchableWithoutFeedback>
@@ -86,98 +122,126 @@ const GlobalDialog: React.FC<GlobalDialogProps> = ({
           style={[
             styles.modalContent,
             { backgroundColor: themeColors.background, maxWidth },
+            style,
           ]}
         >
-          <View style={styles.modalHeader}>
-            {iconName && (
-              <MaterialCommunityIcons
-                name={iconName}
-                size={24}
-                color={iconColor || themeColors.primary}
-              />
-            )}
-            <Text style={[styles.modalTitle, { color: themeColors.text }]}>
-              {title}
-            </Text>
-          </View>
+          {isManagedDialog ? (
+            <>
+              <View style={styles.modalHeader}>
+                {iconName && (
+                  <MaterialCommunityIcons
+                    name={iconName}
+                    size={24}
+                    color={iconColor || themeColors.primary}
+                  />
+                )}
+                {!!title && (
+                  <Text style={[styles.modalTitle, { color: themeColors.text }]}>
+                    {title}
+                  </Text>
+                )}
+              </View>
 
-          {!!description && (
-            <Text style={[styles.modalText, { color: themeColors.text }]}>
-              {description}
-            </Text>
-          )}
-
-          {points.length > 0 && (
-            <View style={styles.bulletPoints}>
-              {points.map((point, index) => (
-                <Text
-                  key={`${point}-${index}`}
-                  style={[styles.bulletPoint, { color: themeColors.text }]}
-                >
-                  {point}
+              {!!description && (
+                <Text style={[styles.modalText, { color: themeColors.text }]}>
+                  {description}
                 </Text>
-              ))}
-            </View>
-          )}
+              )}
 
-          {children}
+              {points.length > 0 && (
+                <View style={styles.bulletPoints}>
+                  {points.map((point, index) => (
+                    <Text
+                      key={`${point}-${index}`}
+                      style={[styles.bulletPoint, { color: themeColors.text }]}
+                    >
+                      {point}
+                    </Text>
+                  ))}
+                </View>
+              )}
 
-          {hasDualButtons ? (
-            <View style={styles.dualButtonRow}>
-              <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  styles.secondaryButton,
-                  { backgroundColor: secondaryButtonColor || defaultSecondaryBg },
-                ]}
-                onPress={onSecondaryPress || onClose}
-              >
-                <Text
+              {children}
+
+              {hasDualButtons ? (
+                <View style={styles.dualButtonRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.modalButton,
+                      styles.secondaryButton,
+                      { backgroundColor: secondaryButtonColor || defaultSecondaryBg },
+                    ]}
+                    onPress={onSecondaryPress || close}
+                  >
+                    <Text
+                      style={[
+                        styles.modalButtonText,
+                        { color: secondaryButtonTextColor || defaultSecondaryText },
+                      ]}
+                    >
+                      {secondaryButtonText}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.modalButton,
+                      styles.primaryButton,
+                      { backgroundColor: primaryButtonColor || themeColors.primary },
+                    ]}
+                    onPress={onPrimaryPress || close}
+                  >
+                    <Text
+                      style={[
+                        styles.modalButtonText,
+                        { color: primaryButtonTextColor || buttonTextColor },
+                      ]}
+                    >
+                      {primaryButtonText}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity
                   style={[
-                    styles.modalButtonText,
-                    { color: secondaryButtonTextColor || defaultSecondaryText },
+                    styles.modalButton,
+                    { backgroundColor: buttonColor || themeColors.primary },
                   ]}
+                  onPress={close}
                 >
-                  {secondaryButtonText}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  styles.primaryButton,
-                  { backgroundColor: primaryButtonColor || themeColors.primary },
-                ]}
-                onPress={onPrimaryPress || onClose}
-              >
-                <Text
-                  style={[
-                    styles.modalButtonText,
-                    { color: primaryButtonTextColor || buttonTextColor },
-                  ]}
-                >
-                  {primaryButtonText}
-                </Text>
-              </TouchableOpacity>
-            </View>
+                  <Text style={[styles.modalButtonText, { color: buttonTextColor }]}>
+                    {buttonText || 'OK'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </>
           ) : (
-            <TouchableOpacity
-              style={[
-                styles.modalButton,
-                { backgroundColor: buttonColor || themeColors.primary },
-              ]}
-              onPress={onClose}
-            >
-              <Text style={[styles.modalButtonText, { color: buttonTextColor }]}>
-                {buttonText}
-              </Text>
-            </TouchableOpacity>
+            children
           )}
         </View>
       </View>
     </Modal>
   );
+}) as DialogComponent;
+
+const DialogTitle: React.FC<DialogTitleProps> = ({ children, style }) => {
+  const { theme: currentTheme } = useTheme();
+  const themeColors = theme[currentTheme as 'light' | 'dark'];
+
+  return <Text style={[styles.compoundTitle, { color: themeColors.text }, style]}>{children}</Text>;
 };
+
+const DialogContent: React.FC<DialogContentProps> = ({ children, style }) => {
+  return <View style={[styles.compoundContent, style]}>{children}</View>;
+};
+
+const DialogActions: React.FC<DialogActionsProps> = ({ children, style }) => {
+  return <View style={[styles.compoundActions, style]}>{children}</View>;
+};
+
+AppDialog.Title = DialogTitle;
+AppDialog.Content = DialogContent;
+AppDialog.Actions = DialogActions;
 
 const styles = StyleSheet.create({
   modalOverlay: {
@@ -248,6 +312,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  compoundTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  compoundContent: {
+    marginBottom: 12,
+  },
+  compoundActions: {
+    marginTop: 8,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 8,
+  },
 });
 
-export default GlobalDialog;
+export default AppDialog;

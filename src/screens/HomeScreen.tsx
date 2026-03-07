@@ -26,7 +26,8 @@ import ChatView from '../components/chat/ChatView';
 import ChatInput from '../components/chat/ChatInput';
 import { onlineModelService, OnlineModelService } from '../services/OnlineModelService';
 import { useModel } from '../context/ModelContext';
-import { Dialog, Portal, Button, Text as PaperText } from 'react-native-paper';
+import { Button, Text as PaperText } from 'react-native-paper';
+import Dialog, { Portal } from '../components/Dialog';
 import { useRemoteModel } from '../context/RemoteModelContext';
 import { engineService } from '../services/inference-engine-service';
 

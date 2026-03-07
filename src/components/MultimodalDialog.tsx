@@ -7,7 +7,8 @@ import {
   Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Button, Dialog, Portal } from 'react-native-paper';
+import { Button } from 'react-native-paper';
+import Dialog, { Portal } from './Dialog';
 import * as DocumentPicker from 'expo-document-picker';
 import { useTheme } from '../context/ThemeContext';
 import { useModel } from '../context/ModelContext';

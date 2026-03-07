@@ -7,7 +7,8 @@ import {
   Switch,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Text, Button, Dialog, Portal } from 'react-native-paper';
+import { Text, Button } from 'react-native-paper';
+import Dialog, { Portal } from './Dialog';
 import { useTheme } from '../context/ThemeContext';
 import { useModel } from '../context/ModelContext';
 import { theme } from '../constants/theme';

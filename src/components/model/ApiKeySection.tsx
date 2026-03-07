@@ -3,7 +3,8 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import { onlineModelService } from '../../services/OnlineModelService';
-import { Dialog, Portal, Button, Surface } from 'react-native-paper';
+import { Button, Surface } from 'react-native-paper';
+import Dialog, { Portal } from '../Dialog';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 interface ApiKeyItem {

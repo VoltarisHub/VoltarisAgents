@@ -11,7 +11,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { TextInput, Button, Dialog, Portal } from 'react-native-paper';
+import { TextInput, Button } from 'react-native-paper';
+import Dialog, { Portal } from '../components/Dialog';
 import * as ImagePicker from 'expo-image-picker';
 import { fs as FileSystem } from '../services/fs';
 import { useTheme } from '../context/ThemeContext';

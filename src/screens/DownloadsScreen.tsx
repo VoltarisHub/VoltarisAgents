@@ -16,8 +16,8 @@ import { modelDownloader } from '../services/ModelDownloader';
 import { useDownloads } from '../context/DownloadContext';
 import AppHeader from '../components/AppHeader';
 import { getThemeAwareColor } from '../utils/ColorUtils';
-import { Dialog, Portal, Text, Button } from 'react-native-paper';
-import GlobalDialog from '../components/Dialog';
+import { Text, Button } from 'react-native-paper';
+import Dialog, { Portal } from '../components/Dialog';
 
 const formatBytes = (bytes: number) => {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
@@ -385,7 +385,7 @@ export default function DownloadsScreen() {
         </Dialog>
       </Portal>
 
-      <GlobalDialog
+      <Dialog
         visible={cancelDialogVisible}
         onClose={hideCancelDialog}
         title="Cancel Download"
