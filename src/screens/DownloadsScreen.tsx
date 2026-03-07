@@ -17,6 +17,7 @@ import { useDownloads } from '../context/DownloadContext';
 import AppHeader from '../components/AppHeader';
 import { getThemeAwareColor } from '../utils/ColorUtils';
 import { Dialog, Portal, Text, Button } from 'react-native-paper';
+import GlobalDialog from '../components/GlobalDialog';
 
 const formatBytes = (bytes: number) => {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
@@ -70,10 +71,17 @@ export default function DownloadsScreen() {
   const [dialogTitle, setDialogTitle] = useState('');
   const [dialogMessage, setDialogMessage] = useState('');
   const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
+  const [cancelDialogVisible, setCancelDialogVisible] = useState(false);
+  const [cancelModelName, setCancelModelName] = useState('');
   const [mlxPackageFiles, setMlxPackageFiles] = useState<Record<string, string[]>>({});
   const [expandedPackages, setExpandedPackages] = useState<Set<string>>(new Set());
 
   const hideDialog = () => setDialogVisible(false);
+
+  const hideCancelDialog = () => {
+    setCancelDialogVisible(false);
+    setCancelModelName('');
+  };
 
   const showDialog = (title: string, message: string, actions: React.ReactNode[]) => {
     setDialogTitle(title);
@@ -185,39 +193,34 @@ export default function DownloadsScreen() {
 
 
   const handleCancel = (modelName: string) => {
-    const confirmCancellation = async () => {
-      hideDialog();
+    setCancelModelName(modelName);
+    setCancelDialogVisible(true);
+  };
 
-      if (buttonProcessingRef.current.has(modelName)) {
-        return;
-      }
+  const confirmCancellation = async () => {
+    const modelName = cancelModelName;
+    hideCancelDialog();
 
-      buttonProcessingRef.current.add(modelName);
+    if (!modelName || buttonProcessingRef.current.has(modelName)) {
+      return;
+    }
 
-      try {
-        await modelDownloader.cancelDownload(modelName);
-        setDownloadProgress(prev => {
-          const newProgress = { ...prev };
-          delete newProgress[modelName];
-          return newProgress;
-        });
-      } catch (error) {
-        showDialog('Error', 'Failed to cancel download', [
-          <Button key="ok" onPress={hideDialog}>OK</Button>
-        ]);
-      } finally {
-        buttonProcessingRef.current.delete(modelName);
-      }
-    };
+    buttonProcessingRef.current.add(modelName);
 
-    showDialog(
-      'Cancel Download',
-      'Are you sure you want to cancel this download?',
-      [
-        <Button key="cancel" onPress={hideDialog}>No</Button>,
-        <Button key="confirm" onPress={confirmCancellation}>Yes</Button>
-      ]
-    );
+    try {
+      await modelDownloader.cancelDownload(modelName);
+      setDownloadProgress(prev => {
+        const newProgress = { ...prev };
+        delete newProgress[modelName];
+        return newProgress;
+      });
+    } catch {
+      showDialog('Error', 'Failed to cancel download', [
+        <Button key="ok" onPress={hideDialog}>OK</Button>
+      ]);
+    } finally {
+      buttonProcessingRef.current.delete(modelName);
+    }
   };
 
   const handleCancelAll = () => {
@@ -381,6 +384,18 @@ export default function DownloadsScreen() {
           </Dialog.Actions>
         </Dialog>
       </Portal>
+
+      <GlobalDialog
+        visible={cancelDialogVisible}
+        onClose={hideCancelDialog}
+        title="Cancel Download"
+        description="Are you sure you want to cancel this download?"
+        iconName="close-circle-outline"
+        primaryButtonText="Yes"
+        onPrimaryPress={confirmCancellation}
+        secondaryButtonText="No"
+        onSecondaryPress={hideCancelDialog}
+      />
     </View>
   );
 }
