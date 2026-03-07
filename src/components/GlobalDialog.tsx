@@ -61,6 +61,10 @@ const GlobalDialog: React.FC<GlobalDialogProps> = ({
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const hasDualButtons = !!primaryButtonText && !!secondaryButtonText;
+  const defaultSecondaryBg =
+    currentTheme === 'light' ? themeColors.secondaryText : themeColors.cardBackground;
+  const defaultSecondaryText =
+    currentTheme === 'light' ? '#fff' : themeColors.text;
 
   if (!visible) return null;
 
@@ -124,14 +128,14 @@ const GlobalDialog: React.FC<GlobalDialogProps> = ({
                 style={[
                   styles.modalButton,
                   styles.secondaryButton,
-                  { backgroundColor: secondaryButtonColor || themeColors.cardBackground },
+                  { backgroundColor: secondaryButtonColor || defaultSecondaryBg },
                 ]}
                 onPress={onSecondaryPress || onClose}
               >
                 <Text
                   style={[
                     styles.modalButtonText,
-                    { color: secondaryButtonTextColor || themeColors.text },
+                    { color: secondaryButtonTextColor || defaultSecondaryText },
                   ]}
                 >
                   {secondaryButtonText}
