@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
-import { Button, Text as PaperText } from 'react-native-paper';
-import Dialog, { Portal } from '../Dialog';
+import { Portal, Button, Text as PaperText } from 'react-native-paper';
+import Dialog from '../Dialog';
 import UnifiedModelList from './UnifiedModelList';
 import CustomUrlDialog from '../CustomUrlDialog';
 import { DownloadableModel } from './DownloadableModelItem';

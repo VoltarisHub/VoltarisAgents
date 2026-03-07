@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { Button, Text } from 'react-native-paper';
-import Dialog, { Portal } from '../Dialog';
+import { Portal, Button, Text } from 'react-native-paper';
+import Dialog from '../Dialog';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';

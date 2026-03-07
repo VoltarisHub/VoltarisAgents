@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Button } from 'react-native-paper';
-import Dialog, { Portal } from '../Dialog';
+import { Portal, Button } from 'react-native-paper';
+import Dialog from '../Dialog';
 import { useTheme } from '../../context/ThemeContext';
 
 interface AITermsDialogProps {

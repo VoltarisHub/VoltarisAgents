@@ -23,10 +23,10 @@ import {
   Button, 
   HelperText,
   Divider,
-  Dialog,
   Portal,
   Checkbox,
 } from 'react-native-paper';
+import Dialog from '../components/Dialog';
 import { registerWithEmail, signInWithGoogle, isEmailFromTrustedProvider, signInWithApple } from '../services/FirebaseService';
 import * as AppleAuthentication from 'expo-apple-authentication';
 

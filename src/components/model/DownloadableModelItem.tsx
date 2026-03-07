@@ -10,8 +10,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import { getThemeAwareColor, getBrowserDownloadTextColor } from '../../utils/ColorUtils';
-import { PaperProvider, Button } from 'react-native-paper';
-import Dialog, { Portal } from '../Dialog';
+import { Portal, PaperProvider, Button } from 'react-native-paper';
+import Dialog from '../Dialog';
 
 import { ModelType } from '../../types/models';
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
-import { Button, Text } from 'react-native-paper';
-import Dialog, { Portal } from './Dialog';
+import { Portal, Button, Text } from 'react-native-paper';
+import Dialog from './Dialog';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { useDialog } from '../context/DialogContext';

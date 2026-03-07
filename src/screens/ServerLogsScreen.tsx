@@ -3,8 +3,8 @@ import { View, StyleSheet, ScrollView, Text, TouchableOpacity, RefreshControl } 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Button } from 'react-native-paper';
-import Dialog, { Portal } from '../components/Dialog';
+import { Portal, Button } from 'react-native-paper';
+import Dialog from '../components/Dialog';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { RootStackParamList } from '../types/navigation';

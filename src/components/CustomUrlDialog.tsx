@@ -19,8 +19,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { TabParamList } from '../types/navigation';
-import { PaperProvider, Text, Button } from 'react-native-paper';
-import Dialog, { Portal } from './Dialog';
+import { Portal, PaperProvider, Text, Button } from 'react-native-paper';
+import Dialog from './Dialog';
 
 interface CustomUrlDialogProps {
   visible: boolean;

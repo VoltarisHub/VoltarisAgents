@@ -12,8 +12,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { modelDownloader } from '../services/ModelDownloader';
 import { ThemeColors } from '../types/theme';
 import { getThemeAwareColor } from '../utils/ColorUtils';
-import { PaperProvider, Text, Button } from 'react-native-paper';
-import Dialog, { Portal } from './Dialog';
+import { Portal, PaperProvider, Text, Button } from 'react-native-paper';
+import Dialog from './Dialog';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 interface ModelDownloaderProps {

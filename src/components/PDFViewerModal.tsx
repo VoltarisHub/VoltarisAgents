@@ -16,8 +16,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import PdfRendererView from 'react-native-pdf-renderer';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
-import { PaperProvider, Text as PaperText, Button } from 'react-native-paper';
-import Dialog, { Portal } from './Dialog';
+import { Portal, PaperProvider, Text as PaperText, Button } from 'react-native-paper';
+import Dialog from './Dialog';
 
 import PDFGridView from './PDFGridView';
 import {

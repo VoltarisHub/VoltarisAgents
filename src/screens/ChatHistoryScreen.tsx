@@ -14,8 +14,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import chatManager, { Chat } from '../utils/ChatManager';
 import AppHeader from '../components/AppHeader';
-import { Text, Button } from 'react-native-paper';
-import Dialog, { Portal } from '../components/Dialog';
+import { Portal, Text, Button } from 'react-native-paper';
+import Dialog from '../components/Dialog';
 
 const PAGE_SIZE = 15;
 

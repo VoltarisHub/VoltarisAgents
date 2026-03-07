@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
-import { Text, ActivityIndicator, Portal, Dialog as PaperDialog, Button, TextInput } from 'react-native-paper';
+import { Text, ActivityIndicator, Portal, Button, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
@@ -8,7 +8,7 @@ import { getThemeAwareColor } from '../../utils/ColorUtils';
 import { DownloadableModel } from './DownloadableModelItem';
 import VisionDownloadDialog from '../VisionDownloadDialog';
 import ModelFilesDialog from '../ModelFilesDialog';
-import AppDialog from '../Dialog';
+import Dialog from '../Dialog';
 import { FilterOptions } from '../ModelFilter';
 import { ModelWarningDialog } from './ModelWarningDialog';
 import { HuggingFaceSearchBar } from './HuggingFaceSearchBar';
@@ -135,12 +135,12 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
 
       {logic.modelDetailsLoading && (
         <Portal>
-          <PaperDialog visible={true}>
-            <PaperDialog.Content style={styles.loadingDialog}>
+          <Dialog visible={true}>
+            <Dialog.Content style={styles.loadingDialog}>
               <ActivityIndicator size="large" />
               <Text style={[styles.loadingDialogText, { color: themeColors.text }]}>Loading model details...</Text>
-            </PaperDialog.Content>
-          </PaperDialog>
+            </Dialog.Content>
+          </Dialog>
         </Portal>
       )}
 
@@ -156,15 +156,15 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
       />
 
       <Portal>
-        <PaperDialog visible={logic.dialogVisible} onDismiss={logic.hideDialog}>
-          <PaperDialog.Title>{logic.dialogTitle}</PaperDialog.Title>
-          <PaperDialog.Content>
+        <Dialog visible={logic.dialogVisible} onDismiss={logic.hideDialog}>
+          <Dialog.Title>{logic.dialogTitle}</Dialog.Title>
+          <Dialog.Content>
             <Text>{logic.dialogMessage}</Text>
-          </PaperDialog.Content>
-          <PaperDialog.Actions>
+          </Dialog.Content>
+          <Dialog.Actions>
             <Button onPress={logic.hideDialog}>OK</Button>
-          </PaperDialog.Actions>
-        </PaperDialog>
+          </Dialog.Actions>
+        </Dialog>
       </Portal>
 
       <ModelWarningDialog
@@ -173,7 +173,7 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
         onCancel={handlers.handleWarningCancel}
       />
 
-      <AppDialog
+      <Dialog
         visible={logic.mlxDirDialogVisible}
         onClose={logic.hideMLXDirDialog}
         title="MLX Folder Name"
@@ -191,7 +191,7 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
           autoCapitalize="none"
           autoCorrect={false}
         />
-      </AppDialog>
+      </Dialog>
 
       {logic.selectedVisionModel && (
         <VisionDownloadDialog
