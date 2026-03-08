@@ -86,17 +86,27 @@ export class DownloadTaskManager extends EventEmitter {
         const modelPath = `${this.fileManager.getBaseDir()}/${modelName}`;
         
         try {
-          const tempInfo = await FileSystem.getInfoAsync(tempPath, { size: true });
-          
+          const [tempInfo, modelInfo] = await Promise.all([
+            FileSystem.getInfoAsync(tempPath, { size: true }),
+            FileSystem.getInfoAsync(modelPath, { size: true }),
+          ]);
+
+          let finalSize = 0;
+
           if (tempInfo.exists) {
-            const tempSize = (tempInfo as any).size || 0;
-            
+            finalSize = (tempInfo as any).size || 0;
             await this.fileManager.moveFile(tempPath, modelPath);
+          } else if (modelInfo.exists) {
+            /* Native already placed the file at the final path */
+            finalSize = (modelInfo as any).size || 0;
+          } else {
+            throw new Error(`file_not_found_after_download: ${modelName}`);
+          }
             
-            const progressData: DownloadProgressEvent = {
+          const progressData: DownloadProgressEvent = {
               progress: 100,
-              bytesDownloaded: tempSize,
-              totalBytes: tempSize,
+              bytesDownloaded: finalSize,
+              totalBytes: finalSize,
               status: 'completed',
               modelName: displayName,
               downloadId: this.getDownloadIdForModel(modelName),
@@ -115,7 +125,6 @@ export class DownloadTaskManager extends EventEmitter {
             this.tempNameMap.delete(modelName);
             this.startedDisplayNames.delete(displayName);
             await this.saveDownloadProgress();
-          }
         } catch (error) {
           try {
             await this.fileManager.deleteFile(tempPath);
@@ -592,59 +601,73 @@ export class DownloadTaskManager extends EventEmitter {
 
         this.tempNameMap.set(tempFileName, sanitizedModelId);
 
-        const fileDownloadId = await this.startDownload(
-          tempFileName,
-          file.downloadUrl,
-          authToken
-        );
+        /*
+          Register event listeners before calling startDownload to
+          eliminate the race where a very small file completes and
+          fires downloadCompleted before the Promise below attaches.
+        */
+        let fileResolve!: () => void;
+        let fileReject!: (e: Error) => void;
+        const filePromise = new Promise<void>((res, rej) => {
+          fileResolve = res;
+          fileReject = rej;
+        });
+
+        const matchesModelEvent = (event: { modelName?: string }) =>
+          event.modelName === tempFileName || event.modelName === sanitizedModelId;
+
+        const progressHandler = (event: DownloadProgressEvent) => {
+          if (matchesModelEvent(event)) {
+            const combinedProgress = (downloadedBytes + event.bytesDownloaded) / totalSize * 100;
+            this.emit('progress', {
+              progress: combinedProgress,
+              bytesDownloaded: downloadedBytes + event.bytesDownloaded,
+              totalBytes: totalSize,
+              status: 'downloading',
+              modelName: sanitizedModelId,
+              downloadId,
+            });
+          }
+        };
+
+        const completeHandler = (event: any) => {
+          if (matchesModelEvent(event)) {
+            this.off('progress', progressHandler);
+            this.off('downloadCompleted', completeHandler);
+            this.off('downloadFailed', errorHandler);
+            downloadedBytes += file.size;
+            fileResolve();
+          }
+        };
+
+        const errorHandler = (event: any) => {
+          if (matchesModelEvent(event)) {
+            this.off('progress', progressHandler);
+            this.off('downloadCompleted', completeHandler);
+            this.off('downloadFailed', errorHandler);
+            fileReject(new Error(event.error || 'download_failed'));
+          }
+        };
+
+        this.on('progress', progressHandler);
+        this.on('downloadCompleted', completeHandler);
+        this.on('downloadFailed', errorHandler);
+
+        try {
+          await this.startDownload(tempFileName, file.downloadUrl, authToken);
+        } catch (startErr) {
+          this.off('progress', progressHandler);
+          this.off('downloadCompleted', completeHandler);
+          this.off('downloadFailed', errorHandler);
+          throw startErr;
+        }
 
         const downloadInfo = this.activeDownloads.get(tempFileName);
         if (downloadInfo) {
           downloadInfo.downloadId = downloadId;
         }
 
-        await new Promise<void>((resolve, reject) => {
-          const matchesModelEvent = (event: { modelName?: string }) =>
-            event.modelName === tempFileName || event.modelName === sanitizedModelId;
-
-          const progressHandler = (event: DownloadProgressEvent) => {
-            if (matchesModelEvent(event)) {
-              const combinedProgress = (downloadedBytes + event.bytesDownloaded) / totalSize * 100;
-
-              this.emit('progress', {
-                progress: combinedProgress,
-                bytesDownloaded: downloadedBytes + event.bytesDownloaded,
-                totalBytes: totalSize,
-                status: 'downloading',
-                modelName: sanitizedModelId,
-                downloadId,
-              });
-            }
-          };
-
-          const completeHandler = (event: any) => {
-            if (matchesModelEvent(event)) {
-              this.off('progress', progressHandler);
-              this.off('downloadCompleted', completeHandler);
-              this.off('downloadFailed', errorHandler);
-              downloadedBytes += file.size;
-              resolve();
-            }
-          };
-
-          const errorHandler = (event: any) => {
-            if (matchesModelEvent(event)) {
-              this.off('progress', progressHandler);
-              this.off('downloadCompleted', completeHandler);
-              this.off('downloadFailed', errorHandler);
-              reject(new Error(event.error || 'download_failed'));
-            }
-          };
-
-          this.on('progress', progressHandler);
-          this.on('downloadCompleted', completeHandler);
-          this.on('downloadFailed', errorHandler);
-        });
+        await filePromise;
 
         const tempModelPath = `${this.fileManager.getBaseDir()}/${tempFileName}`;
         const fileExistsInTemp = await FileSystem.getInfoAsync(tempFilePath);
