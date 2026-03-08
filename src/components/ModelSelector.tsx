@@ -1013,6 +1013,11 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                         <View style={styles.initExpandedContent}>
                           <View style={[styles.initDivider, { backgroundColor: initDividerBg }]} />
 
+                          <View style={[styles.initWarningRow, { backgroundColor: currentTheme === 'dark' ? 'rgba(255,176,0,0.1)' : 'rgba(255,152,0,0.08)', borderColor: currentTheme === 'dark' ? 'rgba(255,176,0,0.25)' : 'rgba(255,152,0,0.3)' }]}>
+                            <MaterialCommunityIcons name="information-outline" size={14} color={currentTheme === 'dark' ? '#FFB300' : '#E65100'} />
+                            <Text style={[styles.initWarningText, { color: currentTheme === 'dark' ? '#FFB300' : '#E65100' }]}>Only applies to the llama.cpp engine</Text>
+                          </View>
+
                           <View style={styles.initSliderItem}>
                             <View style={styles.initSliderHeader}>
                               <View style={styles.initSliderLabelGroup}>

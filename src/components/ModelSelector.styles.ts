@@ -307,6 +307,21 @@ export const styles = StyleSheet.create({
     backgroundColor: 'rgba(74, 6, 96, 0.1)',
     marginBottom: 14,
   },
+  initWarningRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 14,
+  },
+  initWarningText: {
+    fontSize: 12,
+    fontWeight: '500',
+    flex: 1,
+  },
   initSliderItem: {
     marginBottom: 16,
   },
