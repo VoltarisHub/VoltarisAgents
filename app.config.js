@@ -11,11 +11,6 @@ export default {
     privacy: "public",
     keywords: ["AI", "chat", "assistant", "machine learning", "language model", "artificial intelligence"],
     newArchEnabled: true,
-    splash: {
-      image: "./assets/splash.png",
-      resizeMode: "cover",
-      backgroundColor: "#660880"
-    },
     updates: {
       enabled: true,
       checkAutomatically: 'ON_LOAD',
@@ -30,7 +25,6 @@ export default {
       bundleIdentifier: "com.gorai.inferra",
       buildNumber: "281",
       runtimeVersion: "0.8.0",
-      deploymentTarget: "17.0",
       infoPlist: {
         UIBackgroundModes: [
           "fetch",
