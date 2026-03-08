@@ -8,6 +8,7 @@ import {
   TextStyle,
   TouchableOpacity,
   TouchableWithoutFeedback,
+  useColorScheme,
   ViewStyle,
   View,
 } from 'react-native';
@@ -92,15 +93,20 @@ const AppDialog = (({
   children,
 }: DialogProps) => {
   const { theme: currentTheme } = useTheme();
-  const themeColors = theme[currentTheme as 'light' | 'dark'];
+  const systemScheme = useColorScheme();
+  const resolvedTheme: 'light' | 'dark' =
+    currentTheme === 'light' || currentTheme === 'dark'
+      ? currentTheme
+      : systemScheme ?? 'light';
+  const themeColors = theme[resolvedTheme];
   const hasDualButtons = !!primaryButtonText && !!secondaryButtonText;
   const hasPrimaryOnly = !!primaryButtonText && !secondaryButtonText;
   const hasLegacyBtn = !!buttonText && !primaryButtonText;
   const close = onClose || onDismiss;
   const defaultSecondaryBg =
-    currentTheme === 'light' ? themeColors.secondaryText : themeColors.cardBackground;
+    resolvedTheme === 'light' ? themeColors.secondaryText : themeColors.cardBackground;
   const defaultSecondaryText =
-    currentTheme === 'light' ? '#fff' : themeColors.text;
+    resolvedTheme === 'light' ? '#fff' : themeColors.text;
   const isManagedDialog =
     !!iconName ||
     !!title ||
@@ -254,7 +260,12 @@ const AppDialog = (({
 
 const DialogTitle: React.FC<DialogTitleProps> = ({ children, style }) => {
   const { theme: currentTheme } = useTheme();
-  const themeColors = theme[currentTheme as 'light' | 'dark'];
+  const systemScheme = useColorScheme();
+  const resolvedTheme: 'light' | 'dark' =
+    currentTheme === 'light' || currentTheme === 'dark'
+      ? currentTheme
+      : systemScheme ?? 'light';
+  const themeColors = theme[resolvedTheme];
 
   return <Text style={[styles.compoundTitle, { color: themeColors.text }, style]}>{children}</Text>;
 };
