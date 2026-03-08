@@ -4,12 +4,21 @@ import { Chat, ChatMessage } from './ChatManager';
 class ChatDatabase {
   private db: SQLite.SQLiteDatabase | null = null;
   private dbName = 'chat_history.db';
+  private writeQueue: Promise<void> = Promise.resolve();
+
+  private enqueue<T>(fn: () => Promise<T>): Promise<T> {
+    const task = this.writeQueue.then(fn, fn);
+    this.writeQueue = task.then(() => {}, () => {});
+    return task;
+  }
 
   async initialize(): Promise<void> {
     if (this.db) return;
 
     try {
       this.db = await SQLite.openDatabaseAsync(this.dbName);
+      await this.db.execAsync('PRAGMA journal_mode = WAL');
+      await this.db.execAsync('PRAGMA busy_timeout = 5000');
       await this.createTables();
       await this.migrate();
     } catch (error) {
@@ -78,57 +87,67 @@ class ChatDatabase {
 
   async insertChat(chat: Chat): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-    await this.db.runAsync(
-      'INSERT OR REPLACE INTO chats (id, title, timestamp, modelPath, parentChatId, branchFromMsgId, branchPointIndex, forkedFromChatId, forkPointIndex, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [
-        chat.id,
-        chat.title,
-        chat.timestamp,
-        chat.modelPath || null,
-        chat.parentChatId || null,
-        chat.branchFromMsgId || null,
-        chat.branchPointIndex ?? null,
-        chat.forkedFromChatId || null,
-        chat.forkPointIndex ?? null,
-        chat.createdAt,
-      ]
-    );
+    return this.enqueue(async () => {
+      await this.db!.runAsync(
+        'INSERT OR REPLACE INTO chats (id, title, timestamp, modelPath, parentChatId, branchFromMsgId, branchPointIndex, forkedFromChatId, forkPointIndex, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          chat.id,
+          chat.title,
+          chat.timestamp,
+          chat.modelPath || null,
+          chat.parentChatId || null,
+          chat.branchFromMsgId || null,
+          chat.branchPointIndex ?? null,
+          chat.forkedFromChatId || null,
+          chat.forkPointIndex ?? null,
+          chat.createdAt,
+        ]
+      );
+    });
   }
 
   async insertMessage(chatId: string, message: ChatMessage): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-    await this.db.runAsync(
-      'INSERT OR REPLACE INTO messages (id, chatId, content, role, modelName, thinking, duration, tokens, firstTokenTime, avgTokenTime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [
-        message.id,
-        chatId,
-        message.content,
-        message.role,
-        message.modelName || null,
-        message.thinking || null,
-        message.stats?.duration || null,
-        message.stats?.tokens || null,
-        message.stats?.firstTokenTime || null,
-        message.stats?.avgTokenTime || null,
-      ]
-    );
+    return this.enqueue(async () => {
+      await this.db!.runAsync(
+        'INSERT OR REPLACE INTO messages (id, chatId, content, role, modelName, thinking, duration, tokens, firstTokenTime, avgTokenTime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          message.id,
+          chatId,
+          message.content,
+          message.role,
+          message.modelName || null,
+          message.thinking || null,
+          message.stats?.duration || null,
+          message.stats?.tokens || null,
+          message.stats?.firstTokenTime || null,
+          message.stats?.avgTokenTime || null,
+        ]
+      );
+    });
   }
 
   async deleteChat(chatId: string): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-    await this.db.runAsync('DELETE FROM chats WHERE id = ?', [chatId]);
+    return this.enqueue(async () => {
+      await this.db!.runAsync('DELETE FROM chats WHERE id = ?', [chatId]);
+    });
   }
 
   async deleteAllChats(): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-    await this.db.runAsync('DELETE FROM chats');
-    await this.db.runAsync('DELETE FROM messages');
-    await this.db.runAsync('DELETE FROM app_state');
+    return this.enqueue(async () => {
+      await this.db!.runAsync('DELETE FROM chats');
+      await this.db!.runAsync('DELETE FROM messages');
+      await this.db!.runAsync('DELETE FROM app_state');
+    });
   }
 
   async deleteMessage(messageId: string): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-    await this.db.runAsync('DELETE FROM messages WHERE id = ?', [messageId]);
+    return this.enqueue(async () => {
+      await this.db!.runAsync('DELETE FROM messages WHERE id = ?', [messageId]);
+    });
   }
 
   async getAllChats(): Promise<Chat[]> {
@@ -207,15 +226,16 @@ class ChatDatabase {
 
   async setCurrentChatId(chatId: string | null): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-
-    if (chatId === null) {
-      await this.db.runAsync('DELETE FROM app_state WHERE key = ?', ['current_chat_id']);
-    } else {
-      await this.db.runAsync(
-        'INSERT OR REPLACE INTO app_state (key, value) VALUES (?, ?)',
-        ['current_chat_id', chatId]
-      );
-    }
+    return this.enqueue(async () => {
+      if (chatId === null) {
+        await this.db!.runAsync('DELETE FROM app_state WHERE key = ?', ['current_chat_id']);
+      } else {
+        await this.db!.runAsync(
+          'INSERT OR REPLACE INTO app_state (key, value) VALUES (?, ?)',
+          ['current_chat_id', chatId]
+        );
+      }
+    });
   }
 
   async close(): Promise<void> {
