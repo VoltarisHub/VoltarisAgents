@@ -42,6 +42,9 @@ class ModelDownloader extends EventEmitter {
 
     // Forward DownloadTaskManager events
     this.downloadTaskManager.on('progress', (data) => {
+      if (data.modelName?.startsWith('temp_mlx_')) {
+        return;
+      }
       notificationService.updateDownloadProgressNotification(
         data.modelName,
         data.downloadId,
@@ -55,6 +58,9 @@ class ModelDownloader extends EventEmitter {
     });
     
     this.downloadTaskManager.on('downloadStarted', (data) => {
+      if (data.modelName?.startsWith('temp_mlx_')) {
+        return;
+      }
       notificationService.showDownloadStartedNotification(
         data.modelName,
         data.downloadId,
@@ -64,8 +70,14 @@ class ModelDownloader extends EventEmitter {
       this.emit('downloadStarted', data);
     });
     
-    this.downloadTaskManager.on('downloadCompleted', (data) => {
-      this.storedModelsManager.refresh();
+    this.downloadTaskManager.on('downloadCompleted', async (data) => {
+      if (data.modelName?.startsWith('temp_mlx_')) {
+        return;
+      }
+      try {
+        await this.storedModelsManager.refresh();
+      } catch {
+      }
       notificationService.showDownloadCompletedNotification(
         data.modelName,
         data.downloadId,
@@ -76,6 +88,9 @@ class ModelDownloader extends EventEmitter {
     });
     
     this.downloadTaskManager.on('downloadFailed', (data) => {
+      if (data.modelName?.startsWith('temp_mlx_')) {
+        return;
+      }
       notificationService.showDownloadFailedNotification(
         data.modelName,
         data.downloadId,
@@ -86,6 +101,9 @@ class ModelDownloader extends EventEmitter {
     });
 
     this.downloadTaskManager.on('downloadCancelled', (data) => {
+      if (data.modelName?.startsWith('temp_mlx_')) {
+        return;
+      }
       notificationService.showDownloadCancelledNotification(
         data.modelName,
         data.downloadId,
@@ -182,6 +200,27 @@ class ModelDownloader extends EventEmitter {
     }
   }
 
+  async downloadMLXModel(
+    modelId: string,
+    files: Array<{ filename: string; downloadUrl: string; size: number }>,
+    authToken?: string,
+    targetDirName?: string
+  ): Promise<{ downloadId: number }> {
+    if (!this.isInitialized) {
+      await this.initializationPromise;
+    }
+
+    try {
+      if (!this.hasNotificationPermission) {
+        this.hasNotificationPermission = await this.requestNotificationPermissions();
+      }
+      
+      return await this.downloadTaskManager.downloadMLXModel(modelId, files, authToken, targetDirName);
+    } catch (error) {
+      throw error;
+    }
+  }
+
   async pauseDownload(downloadId: number): Promise<void> {
     await this.downloadTaskManager.pauseDownload(downloadId);
   }
@@ -225,7 +264,7 @@ class ModelDownloader extends EventEmitter {
       
       await this.fileManager.cleanupTempDirectory(this.getActiveDownloadNames());
       
-      await this.storedModelsManager.refreshStoredModels();
+      await this.storedModelsManager.refresh();
     } catch (error) {
     }
   }
@@ -252,6 +291,27 @@ class ModelDownloader extends EventEmitter {
       this.storedModelsManager.refresh();
     } catch (error) {
     }
+  }
+
+  async getActiveDownloadsList(): Promise<Array<{ modelName: string; downloadId: number; progress: number; bytesDownloaded: number; totalBytes: number; status: string }>> {
+    if (!this.isInitialized) {
+      await this.initializationPromise;
+    }
+    return this.downloadTaskManager.getActiveDownloads().map(d => ({
+      modelName: d.modelName,
+      downloadId: d.downloadId,
+      progress: d.progress || 0,
+      bytesDownloaded: d.bytesDownloaded || 0,
+      totalBytes: d.totalBytes || 0,
+      status: d.status || 'downloading',
+    }));
+  }
+
+  async getMLXPackageManifest(packageName: string): Promise<string[]> {
+    if (!this.isInitialized) {
+      await this.initializationPromise;
+    }
+    return this.downloadTaskManager.getMLXManifest(packageName);
   }
 }
 

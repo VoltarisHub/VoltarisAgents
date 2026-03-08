@@ -1,0 +1,9 @@
+{
+  "platforms": ["ios", "android"],
+  "ios": {
+    "modules": ["PdfImageModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.pdfimage.PdfImageModule"]
+  }
+}

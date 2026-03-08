@@ -11,6 +11,7 @@ interface StoredModelProps {
   path: string;
   size: number;
   isProjector?: boolean;
+  isMLXGroup?: boolean;
   onDelete: (id: string, path: string) => void;
   onExport?: (path: string, name: string) => void;
   onSettings?: (path: string, name: string) => void;
@@ -39,14 +40,16 @@ const StoredModelItem: React.FC<StoredModelProps> = ({
   path,
   size,
   isProjector,
+  isMLXGroup,
   onDelete,
   onExport,
   onSettings,
 }) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
-  const displayName = getDisplayName(name);
+  const displayName = isMLXGroup ? name : getDisplayName(name);
   const formattedSize = formatBytes(size);
+  const isGGUFModel = name.toLowerCase().includes('.gguf');
 
   return (
     <View style={[styles.modelItem, { backgroundColor: themeColors.borderColor }]}>
@@ -62,6 +65,12 @@ const StoredModelItem: React.FC<StoredModelProps> = ({
           <Text style={[styles.modelName, { color: themeColors.text }]} numberOfLines={1}>
             {displayName}
           </Text>
+          {isMLXGroup && (
+            <View style={styles.mlxBadgeContainer}>
+              <MaterialCommunityIcons name="apple" size={12} color="white" style={{ marginRight: 4 }} />
+              <Text style={styles.mlxBadgeText}>MLX</Text>
+            </View>
+          )}
           {isProjector && (
             <View style={styles.projectorBadgeContainer}>
               <MaterialCommunityIcons name="projector" size={12} color="white" style={{ marginRight: 4 }} />
@@ -71,11 +80,16 @@ const StoredModelItem: React.FC<StoredModelProps> = ({
         </View>
         <View style={styles.modelMetaInfo}>
           <View style={styles.metaItem}>
-            <MaterialCommunityIcons name="disc" size={14} color={themeColors.secondaryText} />
+            <MaterialCommunityIcons name="download" size={14} color={themeColors.secondaryText} />
             <Text style={[styles.metaText, { color: themeColors.secondaryText }]}>
               {formattedSize}
             </Text>
           </View>
+          {isGGUFModel && (
+            <View style={[styles.llamaBadgeContainer, { backgroundColor: getThemeAwareColor('#4a0660', currentTheme) }]}>
+              <Text style={styles.llamaBadgeText}>GGUF</Text>
+            </View>
+          )}
         </View>
       </View>
       <View style={styles.buttonContainer}>
@@ -144,6 +158,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     marginRight: 8,
+  },
+  mlxBadgeContainer: {
+    backgroundColor: '#007AFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 4,
+  },
+  mlxBadgeText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  llamaBadgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  llamaBadgeText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '600',
   },
   projectorBadgeContainer: {
     backgroundColor: '#8e44ad',

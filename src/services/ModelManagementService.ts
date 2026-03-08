@@ -1,5 +1,6 @@
-import { onlineModelService } from './OnlineModelService';
+import { onlineModelService, OnlineModelService } from './OnlineModelService';
 import { llamaManager } from '../utils/LlamaManager';
+import { engineService } from './inference-engine-service';
 import chatManager from '../utils/ChatManager';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { Dispatch, SetStateAction } from 'react';
@@ -22,7 +23,7 @@ export interface ModelInfo {
   currentModelPath: string | null;
 }
 
-export type ProviderType = 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | 'apple-foundation';
+export type ProviderType = 'local' | 'gemini' | 'chatgpt' | 'claude' | 'apple-foundation' | string;
 
 export class ModelManagementService {
   
@@ -100,7 +101,7 @@ export class ModelManagementService {
         setActiveProvider('gemini');
         setSelectedModelPath('gemini');
         chatManager.setCurrentProvider('gemini');
-      } else if (model === 'chatgpt' || model === 'deepseek' || model === 'claude') {
+      } else if (model === 'chatgpt' || model === 'claude' || OnlineModelService.isClone(model)) {
         await unloadModel(true);
         setActiveProvider(model);
         setSelectedModelPath(model);
@@ -112,10 +113,10 @@ export class ModelManagementService {
   static getModelInfo(activeProvider: ProviderType | null): ModelInfo {
     let modelName = 'Select a Model';
     let iconName: keyof typeof MaterialCommunityIcons.glyphMap = "cube-outline";
-    let currentModelPath = activeProvider === 'local' ? llamaManager.getModelPath() : activeProvider;
+    let currentModelPath = activeProvider === 'local' ? engineService.getActiveModelPath() : activeProvider;
     
     if (activeProvider === 'local') {
-      const modelPath = llamaManager.getModelPath();
+      const modelPath = engineService.getActiveModelPath();
       if (modelPath) {
         const modelFileName = modelPath.split('/').pop() || '';
         modelName = modelFileName.split('.')[0];
@@ -127,15 +128,18 @@ export class ModelManagementService {
     } else if (activeProvider === 'chatgpt') {
       modelName = 'gpt-4.1';
       iconName = "cloud";
-    } else if (activeProvider === 'deepseek') {
-      modelName = 'deepseek-r1';
-      iconName = "cloud";
     } else if (activeProvider === 'claude') {
       modelName = 'Claude';
       iconName = "cloud";
     } else if (activeProvider === 'apple-foundation') {
       modelName = 'Apple Foundation';
       iconName = "apple";
+    } else if (activeProvider && OnlineModelService.isClone(activeProvider)) {
+      const base = OnlineModelService.getBaseProvider(activeProvider);
+      const baseName = base.charAt(0).toUpperCase() + base.slice(1);
+      modelName = `${baseName} (clone)`;
+      iconName = "cloud";
+      currentModelPath = activeProvider;
     }
 
     return { name: modelName, iconName, currentModelPath };
@@ -146,7 +150,7 @@ export class ModelManagementService {
     setActiveProvider: Dispatch<SetStateAction<ProviderType | null>>
   ) {
     const handleModelChange = () => {
-      const modelPath = llamaManager.getModelPath();
+      const modelPath = engineService.getActiveModelPath();
       if (modelPath) {
         setActiveProvider('local');
         chatManager.setCurrentProvider('local');

@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
-import { Dialog, Portal, Button, Text } from 'react-native-paper';
+import { Text } from 'react-native-paper';
+import Dialog from './Dialog';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { useDialog } from '../context/DialogContext';
@@ -22,57 +23,34 @@ export const ShowDialog = () => {
   const themeColors = theme[currentTheme as 'light' | 'dark'];
 
   return (
-    <Portal>
-      <Dialog
-        visible={visible}
-        onDismiss={onCancel}
-        style={{ backgroundColor: themeColors.background }}
-      >
-        {showTitle && title && (
-          <Dialog.Title style={{ color: themeColors.text }}>{title}</Dialog.Title>
-        )}
-        <Dialog.Content style={showLoading ? styles.loadingDialogContent : undefined}>
-          {showLoading ? (
-            <>
-              <ActivityIndicator size="large" color={themeColors.primary} />
-              <Text style={[styles.loadingDialogText, { color: themeColors.text }]}>
-                {message}
-              </Text>
-            </>
-          ) : (
-            <Text style={[styles.message, { color: themeColors.text }]}>
+    <>
+      {showLoading ? (
+        <Dialog visible={visible} onDismiss={undefined}>
+          <View style={styles.loadingDialogContent}>
+            <ActivityIndicator size="large" color={themeColors.primary} />
+            <Text style={[styles.loadingDialogText, { color: themeColors.text }]}>
               {message}
             </Text>
-          )}
-        </Dialog.Content>
-        {!showLoading && (
-          <Dialog.Actions>
-            {cancelText && (
-              <Button 
-                onPress={onCancel} 
-                textColor={themeColors.secondaryText}
-              >
-                {cancelText}
-              </Button>
-            )}
-            <Button 
-              onPress={onConfirm} 
-              textColor={themeColors.primary}
-            >
-              {confirmText}
-            </Button>
-          </Dialog.Actions>
-        )}
-      </Dialog>
-    </Portal>
+          </View>
+        </Dialog>
+      ) : (
+        <Dialog
+          visible={visible}
+          onDismiss={onCancel}
+          style={{ backgroundColor: themeColors.background }}
+          title={showTitle && title ? title : undefined}
+          description={message}
+          primaryButtonText={confirmText}
+          onPrimaryPress={onConfirm}
+          secondaryButtonText={cancelText || undefined}
+          onSecondaryPress={onCancel}
+        />
+      )}
+    </>
   );
 };
 
 const styles = StyleSheet.create({
-  message: {
-    fontSize: 16,
-    lineHeight: 24,
-  },
   loadingDialogContent: {
     alignItems: 'center',
     gap: 16,

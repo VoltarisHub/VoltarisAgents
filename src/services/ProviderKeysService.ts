@@ -33,7 +33,6 @@ export class ProviderKeysService {
     switch (provider) {
       case 'gemini': return 'Gemini';
       case 'chatgpt': return 'gpt-4.1';
-      case 'deepseek': return 'deepseek-r1';
       case 'claude': return 'Claude';
       case 'apple-foundation': return 'Apple Foundation';
       default: return provider.charAt(0).toUpperCase() + provider.slice(1);

@@ -1,11 +1,13 @@
-import * as FileSystem from 'expo-file-system';
+import { fs as FileSystem } from './fs';
 import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EventEmitter } from './EventEmitter';
 import { FileManager } from './FileManager';
 import { StoredModel } from './ModelDownloaderTypes';
 import { detectVisionCapabilities } from '../utils/multimodalHelpers';
-import { ModelType } from '../types/models';
+import { ModelType, ModelFormat } from '../types/models';
+import { mlxStorageManager } from './MLXStorageManager';
+import { ModelManager } from 'react-native-nitro-mlx';
 
 export class StoredModelsManager extends EventEmitter {
   private fileManager: FileManager;
@@ -39,6 +41,90 @@ export class StoredModelsManager extends EventEmitter {
     } catch {
       return false;
     }
+  }
+
+  private async findMlxDir(modelId: string): Promise<string | null> {
+    const nitroModelId = modelId.replace(/\//g, '_');
+    const candidates = [
+      mlxStorageManager.getMLXModelDirectory(modelId),
+      mlxStorageManager.getMLXModelDirectory(nitroModelId),
+      `${FileSystem.documentDirectory}huggingface/models/${nitroModelId}`,
+      `${FileSystem.documentDirectory}huggingface/models/${modelId}`,
+    ];
+
+    for (const candidate of candidates) {
+      try {
+        const info = await FileSystem.getInfoAsync(candidate);
+        if (info.exists && info.isDirectory) {
+          return candidate;
+        }
+      } catch {
+      }
+    }
+
+    return null;
+  }
+
+  private async getDirStats(dirPath: string): Promise<{ size: number; fileCount: number }> {
+    let size = 0;
+    let fileCount = 0;
+
+    const walk = async (currentPath: string): Promise<void> => {
+      const entries = await FileSystem.readDirectoryAsync(currentPath);
+      for (const entry of entries) {
+        const fullPath = `${currentPath}/${entry}`;
+        const info = await FileSystem.getInfoAsync(fullPath, { size: true });
+        if (!info.exists) {
+          continue;
+        }
+
+        if (info.isDirectory) {
+          await walk(fullPath);
+        } else {
+          fileCount += 1;
+          size += (info as any).size || 0;
+        }
+      }
+    };
+
+    await walk(dirPath);
+    return { size, fileCount };
+  }
+
+  private async collectModelFiles(baseDir: string): Promise<Array<{ name: string; path: string; size: number }>> {
+    const files: Array<{ name: string; path: string; size: number }> = [];
+
+    const walk = async (currentDir: string, relativeDir: string): Promise<void> => {
+      const entries = await FileSystem.readDirectoryAsync(currentDir);
+
+      for (const entry of entries) {
+        if (!relativeDir && entry === 'mlx') {
+          continue;
+        }
+
+        const fullPath = `${currentDir}/${entry}`;
+        const relativePath = relativeDir ? `${relativeDir}/${entry}` : entry;
+        const info = await FileSystem.getInfoAsync(fullPath, { size: true });
+
+        if (!info.exists) {
+          continue;
+        }
+
+        if (info.isDirectory) {
+          await walk(fullPath, relativePath);
+          continue;
+        }
+
+        files.push({
+          name: relativePath,
+          path: fullPath,
+          size: (info as any).size || 0,
+        });
+      }
+    };
+
+    await walk(baseDir, '');
+    return files;
   }
 
   private async confirmFilesExist(models: StoredModel[]): Promise<StoredModel[]> {
@@ -82,11 +168,9 @@ export class StoredModelsManager extends EventEmitter {
   }
 
   async getStoredModels(): Promise<StoredModel[]> {
-    console.log('get_models_start');
     try {
       const storedData = await AsyncStorage.getItem(this.STORAGE_KEY);
       if (storedData) {
-        console.log('models_from_storage');
         return JSON.parse(storedData);
       }
     } catch (error) {
@@ -95,6 +179,30 @@ export class StoredModelsManager extends EventEmitter {
 
     console.log('no_cached_models');
     return [];
+  }
+
+  private async getMlxIds(): Promise<string[]> {
+    const ids = new Set<string>();
+
+    try {
+      const regIds = await ModelManager.getDownloadedModels();
+      for (const id of regIds) {
+        ids.add(id);
+      }
+    } catch (error) {
+      console.log('mlx_registry_list_error', error);
+    }
+
+    try {
+      const fsModels = await mlxStorageManager.listMLXModels();
+      for (const model of fsModels) {
+        ids.add(model.modelId);
+      }
+    } catch (error) {
+      console.log('mlx_fs_list_error', error);
+    }
+
+    return Array.from(ids);
   }
 
   private async scanAndPersist(): Promise<StoredModel[]> {
@@ -114,21 +222,17 @@ export class StoredModelsManager extends EventEmitter {
         }
 
         console.log('reading_directory');
-        const dir = await FileSystem.readDirectoryAsync(baseDir);
-        console.log('files_found', dir.length);
+        const discoveredFiles = await this.collectModelFiles(baseDir);
+        console.log('files_found', discoveredFiles.length);
 
         const models: StoredModel[] = [];
-        if (dir.length > 0) {
+        if (discoveredFiles.length > 0) {
           console.log('processing_files');
-          for (const name of dir) {
+          for (const file of discoveredFiles) {
             try {
-              const path = `${baseDir}/${name}`;
-              const fileInfo = await FileSystem.getInfoAsync(path, { size: true });
-              if (!fileInfo.exists || (fileInfo as any).isDirectory) {
-                continue;
-              }
-
-              const size = (fileInfo as any).size || 0;
+              const name = file.name;
+              const path = file.path;
+              const size = file.size;
               const modified = new Date().toISOString();
 
               const capabilities = detectVisionCapabilities(name);
@@ -147,6 +251,8 @@ export class StoredModelsManager extends EventEmitter {
                 isExternal: false,
                 downloaded: true,
                 modelType,
+                modelFormat: ModelFormat.GGUF,
+                isDirectory: false,
                 capabilities: capabilities.capabilities,
                 supportsMultimodal: capabilities.isVision,
                 compatibleProjectionModels: capabilities.compatibleProjections,
@@ -156,6 +262,50 @@ export class StoredModelsManager extends EventEmitter {
               console.log('scan_file_error', name, fileError);
             }
           }
+        }
+
+        console.log('scanning_mlx_models');
+        try {
+          const mlxModelIds = await this.getMlxIds();
+          console.log('mlx_models_found', mlxModelIds.length);
+
+          for (const modelId of mlxModelIds) {
+            try {
+              const modelPath = await this.findMlxDir(modelId);
+              if (!modelPath) {
+                console.log('mlx_dir_missing', modelId);
+                continue;
+              }
+
+              const dirInfo = await FileSystem.getInfoAsync(modelPath);
+              if (!dirInfo.exists || !dirInfo.isDirectory) {
+                console.log('mlx_dir_invalid', modelId);
+                continue;
+              }
+
+              const { size, fileCount } = await this.getDirStats(modelPath);
+
+              models.push({
+                id: `${modelId}-${Date.now()}`,
+                name: modelId,
+                path: modelPath,
+                size,
+                modified: new Date((dirInfo as any).modificationTime || Date.now()).toISOString(),
+                isExternal: false,
+                downloaded: true,
+                modelType: ModelType.LLM,
+                modelFormat: ModelFormat.MLX,
+                isDirectory: true,
+                fileCount,
+                capabilities: ['text'],
+                supportsMultimodal: false,
+              });
+            } catch (modelError) {
+              console.log('mlx_model_scan_error', modelId, modelError);
+            }
+          }
+        } catch (error) {
+          console.log('mlx_scan_error', error);
         }
 
         console.log('saving_to_storage', models.length);
@@ -186,11 +336,35 @@ export class StoredModelsManager extends EventEmitter {
 
       const storedData = await AsyncStorage.getItem(this.STORAGE_KEY);
       const storedModels: StoredModel[] = storedData ? JSON.parse(storedData) : [];
+      const mlxInStorage = storedModels.filter(m => m.modelFormat === ModelFormat.MLX).length;
       
-      if (storedModels.length === 0) {
+      let needsRescan = storedModels.length === 0;
+      
+      if (!needsRescan && mlxInStorage === 0) {
+        try {
+          const mlxModelIds = await this.getMlxIds();
+          if (mlxModelIds.length > 0) {
+            needsRescan = true;
+          }
+        } catch (error) {
+          console.log('mlx_disk_check_error', error);
+        }
+      }
+      
+      if (needsRescan) {
         const filesOnDisk = await FileSystem.readDirectoryAsync(baseDir);
-        if (filesOnDisk.length > 0) {
-          console.log('sync_empty_storage_but_files_exist');
+        let hasModels = filesOnDisk.length > 0;
+        
+        if (!hasModels) {
+          try {
+            const mlxModelIds = await this.getMlxIds();
+            hasModels = mlxModelIds.length > 0;
+          } catch (error) {
+            console.log('mlx_check_error', error);
+          }
+        }
+        
+        if (hasModels) {
           await this.scanAndPersist();
           return;
         }
@@ -222,6 +396,24 @@ export class StoredModelsManager extends EventEmitter {
 
   async deleteModel(path: string): Promise<void> {
     return this.lock(async () => {
+      const currentModels = await this.getStoredModels();
+      const modelToDelete = currentModels.find(m => m.path === path);
+      
+      if (modelToDelete && modelToDelete.modelFormat === ModelFormat.MLX) {
+        try {
+          const modelId = modelToDelete.name;
+          await ModelManager.deleteModel(modelId);
+          console.log('mlx_model_deleted', modelId);
+        } catch (error) {
+          console.log('mlx_delete_error', error);
+        }
+        
+        const updated = currentModels.filter(m => m.path !== path);
+        await this.saveModelsToStorage(updated);
+        this.emit('modelsChanged');
+        return;
+      }
+      
       const dir = path.substring(0, path.lastIndexOf('/'));
       const baseName = path.substring(path.lastIndexOf('/') + 1);
       const projectorName = baseName.replace('.gguf', '-mmproj-f16.gguf');
@@ -235,7 +427,6 @@ export class StoredModelsManager extends EventEmitter {
         hasProjector = false;
       }
       
-      const currentModels = await this.getStoredModels();
       let updated = currentModels.filter(m => m.path !== path);
       if (hasProjector) {
         updated = updated.filter(m => m.path !== projectorPath);
@@ -314,10 +505,54 @@ export class StoredModelsManager extends EventEmitter {
 
   async clearAllModels(): Promise<void> {
     try {
-      const emptyModels: StoredModel[] = [];
-      await this.saveModelsToStorage(emptyModels);
+      const models = await this.getStoredModels();
+
+      /*
+        Unregister each MLX model from the nitro registry
+        so stale entries don't linger after file deletion.
+      */
+      for (const m of models) {
+        if (m.modelFormat === ModelFormat.MLX) {
+          try {
+            await ModelManager.deleteModel(m.name);
+          } catch {
+            console.log('mlx_registry_delete_skip', m.name);
+          }
+        }
+      }
+
+      const baseDir = this.fileManager.getBaseDir();
+      const hfDir = `${FileSystem.documentDirectory}huggingface`;
+
+      /*
+        Delete the main models directory, the huggingface
+        directory, and any stray temp / export residue that
+        may consume storage.
+      */
+      const dirsToRemove = [
+        baseDir,
+        hfDir,
+        `${FileSystem.documentDirectory}temp`,
+        `${FileSystem.cacheDirectory}export`,
+      ];
+
+      for (const dir of dirsToRemove) {
+        try {
+          const info = await FileSystem.getInfoAsync(dir);
+          if (info.exists) {
+            await FileSystem.deleteAsync(dir, { idempotent: true });
+            console.log('dir_deleted', dir);
+          }
+        } catch {
+          console.log('dir_delete_skip', dir);
+        }
+      }
+
+      await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
+
+      await this.saveModelsToStorage([]);
       this.emit('modelsChanged');
-      console.log('all_models_cleared_from_storage');
+      console.log('all_models_cleared');
     } catch (error) {
       console.log('clear_all_models_error', error);
       throw error;
@@ -334,24 +569,18 @@ export class StoredModelsManager extends EventEmitter {
       const storedPaths = new Set(storedModels.map(m => m.path));
       
       const baseDir = this.fileManager.getBaseDir();
-      const files = await FileSystem.readDirectoryAsync(baseDir);
+      const files = await this.collectModelFiles(baseDir);
       
-      for (const name of files) {
-        const filePath = `${baseDir}/${name}`;
-        if (storedPaths.has(filePath)) {
+      for (const file of files) {
+        if (storedPaths.has(file.path)) {
           continue;
         }
-        
-        const info = await FileSystem.getInfoAsync(filePath, { size: true });
-        if (!info.exists || (info as any).isDirectory) {
-          continue;
-        }
-        
+
         try {
-          await this.registerModel(name, filePath, (info as any).size || 0);
-          console.log('auto_registered', name);
+          await this.registerModel(file.name, file.path, file.size);
+          console.log('auto_registered', file.name);
         } catch {
-          console.log('register_skipped', name);
+          console.log('register_skipped', file.name);
         }
       }
     } catch (error) {

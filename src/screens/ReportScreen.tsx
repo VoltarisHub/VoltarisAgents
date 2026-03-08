@@ -11,9 +11,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { TextInput, Button, Dialog, Portal } from 'react-native-paper';
+import { TextInput, Button } from 'react-native-paper';
+import Dialog from '../components/Dialog';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import { fs as FileSystem } from '../services/fs';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -148,7 +149,7 @@ export default function ReportScreen({ navigation, route }: ReportScreenProps) {
         email: email.trim(),
         userId: user?.uid || null,
         timestamp: new Date().toISOString(),
-        appVersion: '0.7.8',
+        appVersion: '0.7.9',
         platform: Platform.OS,
         attachments: attachedMedia,
       };
@@ -370,28 +371,20 @@ export default function ReportScreen({ navigation, route }: ReportScreenProps) {
         </ScrollView>
       </KeyboardAvoidingView>
       
-      <Portal>
-        <Dialog 
-          visible={showSuccessDialog} 
-          onDismiss={() => {
-            setShowSuccessDialog(false);
-            navigation.goBack();
-          }}
-        >
-          <Dialog.Title>Report Submitted</Dialog.Title>
-          <Dialog.Content>
-            <Text>Thank you for your report. I will review it and take appropriate action.</Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => {
-              setShowSuccessDialog(false);
-              navigation.goBack();
-            }}>
-              OK
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <Dialog
+        visible={showSuccessDialog}
+        onDismiss={() => {
+          setShowSuccessDialog(false);
+          navigation.goBack();
+        }}
+        title="Report Submitted"
+        description="Thank you for your report. I will review it and take appropriate action."
+        buttonText="OK"
+        onClose={() => {
+          setShowSuccessDialog(false);
+          navigation.goBack();
+        }}
+      />
     </SafeAreaView>
   );
 }

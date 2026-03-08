@@ -16,7 +16,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import PdfRendererView from 'react-native-pdf-renderer';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
-import { Dialog, Portal, PaperProvider, Text as PaperText, Button } from 'react-native-paper';
+import { Text as PaperText } from 'react-native-paper';
+import Dialog from './Dialog';
 
 import PDFGridView from './PDFGridView';
 import {
@@ -76,17 +77,15 @@ export default function PDFViewerModal({
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
   const [dialogMessage, setDialogMessage] = useState('');
-  const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
 
   const isCancelledRef = useRef(false);
   const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const hideDialog = () => setDialogVisible(false);
 
-  const showDialog = (title: string, message: string, actions: React.ReactNode[] = [<Button key="ok" onPress={hideDialog}>OK</Button>]) => {
+  const showDialog = (title: string, message: string) => {
     setDialogTitle(title);
     setDialogMessage(message);
-    setDialogActions(actions);
     setDialogVisible(true);
   };
 
@@ -592,17 +591,14 @@ export default function PDFViewerModal({
         ragToggleDisabled={ragToggleDisabled}
       />
 
-      <Portal>
-        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
-          <Dialog.Title>{dialogTitle}</Dialog.Title>
-          <Dialog.Content>
-            <PaperText>{dialogMessage}</PaperText>
-          </Dialog.Content>
-          <Dialog.Actions>
-            {dialogActions}
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <Dialog
+        visible={dialogVisible}
+        onDismiss={hideDialog}
+        title={dialogTitle}
+        description={dialogMessage}
+        buttonText="OK"
+        onClose={hideDialog}
+      />
     </>
   );
 }

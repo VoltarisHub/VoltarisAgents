@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { Dialog, Portal, Button, Text as PaperText } from 'react-native-paper';
+import { Text as PaperText } from 'react-native-paper';
+import Dialog from '../Dialog';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
@@ -22,15 +23,18 @@ export const StorageWarningDialog: React.FC<StorageWarningDialogProps> = ({
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
   return (
-    <Portal>
-      <Dialog 
-        visible={visible} 
-        onDismiss={onCancel}
-        style={{
-          zIndex: 10000,
-          elevation: 10000
-        }}
-      >
+    <Dialog 
+      visible={visible} 
+      onDismiss={onCancel}
+      primaryButtonText="Continue"
+      onPrimaryPress={() => onAccept(dontShowAgain)}
+      secondaryButtonText="Cancel"
+      onSecondaryPress={onCancel}
+      style={{
+        zIndex: 10000,
+        elevation: 10000
+      }}
+    >
         <Dialog.Title>File Manager Warning</Dialog.Title>
         <Dialog.Content>
           <PaperText variant="bodyMedium" style={{ marginBottom: 16 }}>
@@ -61,12 +65,7 @@ export const StorageWarningDialog: React.FC<StorageWarningDialogProps> = ({
             </PaperText>
           </TouchableOpacity>
         </Dialog.Content>
-        <Dialog.Actions>
-          <Button onPress={onCancel}>Cancel</Button>
-          <Button onPress={() => onAccept(dontShowAgain)}>Continue</Button>
-        </Dialog.Actions>
       </Dialog>
-    </Portal>
   );
 };
 

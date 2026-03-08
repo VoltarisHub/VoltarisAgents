@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import * as FileSystem from 'expo-file-system';
+import { fs as FileSystem } from '../services/fs';
 import TextRecognition from '@react-native-ml-kit/text-recognition';
 
 export type ImageProcessingMode = 'ocr' | 'multimodal' | null;

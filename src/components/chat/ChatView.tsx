@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -15,20 +15,20 @@ import {
   Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import Markdown from 'react-native-markdown-display';
-import CodeHighlighter from 'react-native-code-highlighter';
-import { atomOneDark } from 'react-syntax-highlighter/dist/esm/styles/hljs';
+import ChatMarkdown from './ChatMarkdown';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import chatManager from '../../utils/ChatManager';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
+import * as MediaLibrary from 'expo-media-library';
 
 export type Message = {
   id: string;
   content: string;
   role: 'user' | 'assistant' | 'system';
+  modelName?: string;
   thinking?: string;
   stats?: {
     duration: number;
@@ -55,21 +55,28 @@ type ChatViewProps = {
   onStopGeneration?: () => void;
   onEditingStateChange?: (isEditing: boolean) => void;
   onStartEdit?: (messageId: string, content: string) => void;
+  chatId?: string;
+  onSwitchBranch?: (branchChatId: string) => void;
+  onForkChat?: (fromMsgIndex: number) => void;
 };
 
 const hasMarkdownFormatting = (content: string): boolean => {
   const markdownPatterns = [
-    /```/,           
-    /`[^`]+`/,       
-    /\*\*[^*]+\*\*/,  
-    /\*[^*]+\*/,      
-    /^#+\s/m,         
-    /\[[^\]]+\]\([^)]+\)/,  
-    /^\s*[-*+]\s/m,   
-    /^\s*\d+\.\s/m,   
-    /^\s*>\s/m,       
-    /~~[^~]+~~/,      
-    /\|\s*[^|]+\s*\|/  
+    /```/,
+    /`[^`]+`/,
+    /\*\*[^*]+\*\*/,
+    /\*[^*]+\*/,
+    /^#+\s/m,
+    /\[[^\]]+\]\([^)]+\)/,
+    /^\s*[-*+]\s/m,
+    /^\s*\d+\.\s/m,
+    /^\s*>\s/m,
+    /~~[^~]+~~/,
+    /\|\s*[^|]+\s*\|/,
+    /\$\$[\s\S]+?\$\$/,
+    /\$[^$\n]+\$/,
+    /\\\[[\s\S]+?\\\]/,
+    /\\\([\s\S]+?\\\)/,
   ];
 
   return markdownPatterns.some(pattern => pattern.test(content));
@@ -91,6 +98,9 @@ export default function ChatView({
   onStopGeneration,
   onEditingStateChange,
   onStartEdit,
+  chatId,
+  onSwitchBranch,
+  onForkChat,
 }: ChatViewProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -98,6 +108,34 @@ export default function ChatView({
   
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [isImageViewerVisible, setIsImageViewerVisible] = useState(false);
+  const [imgViewSize, setImgViewSize] = useState<{ width: number; height: number } | null>(null);
+  const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
+  const branchSwitchRef = useRef(false);
+  const branchSwitchTimer = useRef<NodeJS.Timeout | null>(null);
+  const branchAnchorIdxRef = useRef<number | null>(null);
+  const pendingAnchorRestoreRef = useRef(false);
+
+  const markBranchSwitch = useCallback((origIndex: number) => {
+    branchSwitchRef.current = true;
+    branchAnchorIdxRef.current = origIndex;
+    pendingAnchorRestoreRef.current = true;
+    if (branchSwitchTimer.current) {
+      clearTimeout(branchSwitchTimer.current);
+    }
+    branchSwitchTimer.current = setTimeout(() => {
+      branchSwitchRef.current = false;
+    }, 500);
+  }, []);
+
+  const branchInfoMap = useMemo(() => {
+    if (!chatId) return new Map<number, { total: number; current: number; branches: string[] }>();
+    return chatManager.getAllBranchInfo(chatId);
+  }, [chatId, messages]);
+
+  const forkInfoMap = useMemo(() => {
+    if (!chatId) return new Map<number, { total: number; current: number; forks: string[] }>();
+    return chatManager.getForkInfo(chatId);
+  }, [chatId, messages]);
 
   const openReportDialog = useCallback((messageContent: string, provider: string) => {
     navigation.navigate('Report', {
@@ -107,14 +145,60 @@ export default function ChatView({
   }, [navigation]);
 
   const openImageViewer = useCallback((imageUri: string) => {
+    setImgViewSize(null);
     setFullScreenImage(imageUri);
     setIsImageViewerVisible(true);
+    Image.getSize(
+      imageUri,
+      (width, height) => {
+        const vpWidth = Dimensions.get('window').width;
+        const vpHeight = Dimensions.get('window').height;
+        const scale = Math.min(1, vpWidth / width, vpHeight / height);
+        setImgViewSize({
+          width: Math.max(1, Math.round(width * scale)),
+          height: Math.max(1, Math.round(height * scale)),
+        });
+      },
+      () => {
+        const vpWidth = Dimensions.get('window').width;
+        const vpHeight = Dimensions.get('window').height;
+        setImgViewSize({
+          width: Math.round(vpWidth * 0.9),
+          height: Math.round(vpHeight * 0.8),
+        });
+      }
+    );
   }, []);
 
   const closeImageViewer = useCallback(() => {
     setIsImageViewerVisible(false);
     setFullScreenImage(null);
+    setImgViewSize(null);
   }, []);
+
+  const saveImg = useCallback(async () => {
+    if (!fullScreenImage) {
+      return;
+    }
+
+    try {
+      let granted = mediaPermission?.granted;
+      if (!granted) {
+        const permissionResult = await requestMediaPermission();
+        granted = permissionResult?.granted;
+      }
+
+      if (!granted) {
+        Alert.alert('Permission Required', 'Allow photo library access to save images.');
+        return;
+      }
+
+      await MediaLibrary.saveToLibraryAsync(fullScreenImage);
+      Alert.alert('Saved', 'Image saved to gallery.');
+    } catch (e) {
+      Alert.alert('Save Failed', 'Unable to save image to gallery.');
+    }
+  }, [fullScreenImage, mediaPermission?.granted, requestMediaPermission]);
 
   const startEditing = useCallback((messageId: string, currentContent: string) => {
     let contentToEdit = currentContent;
@@ -152,7 +236,10 @@ export default function ChatView({
     }
   }, []);
 
-  const renderMessage = useCallback(({ item }: { item: Message }) => {
+  const renderMessage = useCallback(({ item, index }: { item: Message; index: number }) => {
+    const origIndex = messages.length - 1 - index;
+    const branchInfo = branchInfoMap.get(origIndex);
+    const forkInfo = forkInfoMap.get(origIndex);
     const isCurrentlyStreaming = isStreaming && !justCancelled && item.id === streamingMessageId;
     const showLoadingIndicator = isCurrentlyStreaming && !streamingMessage;
     
@@ -386,7 +473,7 @@ export default function ChatView({
         ]}>
           <View style={styles.messageHeader}>
             <Text style={[styles.roleLabel, { color: item.role === 'user' ? '#fff' : themeColors.text }]}>
-              {item.role === 'user' ? 'You' : 'Model'}
+              {item.role === 'user' ? 'You' : (item.modelName || 'Model')}
             </Text>
             <View style={styles.messageHeaderActions}>
               {item.role === 'user' ? (
@@ -399,6 +486,19 @@ export default function ChatView({
                     name="pencil" 
                     size={16} 
                     color="#fff" 
+                  />
+                </TouchableOpacity>
+              ) : null}
+              {item.role === 'assistant' ? (
+                <TouchableOpacity 
+                  style={styles.copyButton} 
+                  onPress={() => onForkChat?.(origIndex)}
+                  hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                >
+                  <MaterialCommunityIcons 
+                    name="source-branch" 
+                    size={16} 
+                    color={themeColors.text} 
                   />
                 </TouchableOpacity>
               ) : null}
@@ -469,179 +569,13 @@ export default function ChatView({
             )
           ) : (
             <View style={styles.markdownWrapper}>
-              <Markdown
-                style={{
-                  body: {
-                    color: item.role === 'user' ? '#fff' : themeColors.text,
-                    fontSize: 15,
-                    lineHeight: 20,
-                  },
-                  paragraph: {
-                    marginVertical: 0,
-                  },
-                  heading1: {
-                    fontSize: 18,
-                    lineHeight: 24,
-                    fontWeight: '600',
-                    marginVertical: 8,
-                  },
-                  heading2: {
-                    fontSize: 17,
-                    lineHeight: 22,
-                    fontWeight: '600',
-                    marginVertical: 8,
-                  },
-                  heading3: {
-                    fontSize: 16,
-                    lineHeight: 20,
-                    fontWeight: '600',
-                    marginVertical: 8,
-                  },
-                  heading4: {
-                    fontSize: 15,
-                    lineHeight: 20,
-                    fontWeight: '600',
-                    marginVertical: 8,
-                  },
-                  heading5: {
-                    fontSize: 15,
-                    lineHeight: 20,
-                    fontWeight: '600',
-                    marginVertical: 8,
-                  },
-                  heading6: {
-                    fontSize: 15,
-                    lineHeight: 20,
-                    fontWeight: '600',
-                    marginVertical: 8,
-                  },
-                  code_block: {
-                    backgroundColor: '#000',
-                    borderRadius: 8,
-                    padding: 12,
-                    marginVertical: 8,
-                    position: 'relative',
-                    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-                    fontSize: 14,
-                    lineHeight: 20,
-                  },
-                  fence: {
-                    backgroundColor: '#000',
-                    borderRadius: 8,
-                    padding: 12,
-                    marginVertical: 8,
-                    position: 'relative',
-                    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-                    fontSize: 14,
-                    lineHeight: 20,
-                  },
-                  code_inline: {
-                    color: '#fff',
-                    backgroundColor: '#000',
-                    borderRadius: 4,
-                    paddingHorizontal: 4,
-                    paddingVertical: 2,
-                    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-                    fontSize: 14,
-                  },
-                  text: {
-                    color: item.role === 'user' ? '#fff' : themeColors.text,
-                    fontSize: 15,
-                    lineHeight: 20,
-                  },
-                  fence_text: {
-                    color: '#fff',
-                    fontSize: 14,
-                    lineHeight: 20,
-                  },
-                  code_block_text: {
-                    color: '#fff',
-                    fontSize: 14,
-                    lineHeight: 20,
-                  },
-                  list_item: {
-                    marginVertical: 4,
-                  },
-                  bullet_list: {
-                    marginVertical: 8,
-                  },
-                  ordered_list: {
-                    marginVertical: 8,
-                  }
-                }}
-                rules={{
-                  fence: (node, _children, _parent, styles) => {
-                    const codeContent = node.content;
-                    const language = (node as any).sourceInfo || 'text';
-                    return (
-                      <View style={[styles.fence, { position: 'relative', backgroundColor: '#000000' }]} key={node.key}>
-                        <CodeHighlighter
-                          hljsStyle={atomOneDark}
-                          textStyle={{
-                            fontSize: 14,
-                            lineHeight: 20,
-                            fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-                          }}
-                          scrollViewProps={{ 
-                            style: { backgroundColor: '#000000' },
-                            contentContainerStyle: { backgroundColor: '#000000' } 
-                          }}
-                          {...({ language } as any)}
-                        >
-                          {codeContent || ''}
-                        </CodeHighlighter>
-                        <TouchableOpacity 
-                          style={styles.codeBlockCopyButton}
-                          onPress={() => onCopyText(codeContent)}
-                          hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-                        >
-                          <MaterialCommunityIcons 
-                            name="content-copy" 
-                            size={14} 
-                            color={themeColors.headerText} 
-                          />
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  },
-                  code_block: (node, _children, _parent, styles) => {
-                    const codeContent = node.content;
-                    const language = (node as any).sourceInfo || 'text';
-                    return (
-                      <View style={[styles.code_block, { position: 'relative', backgroundColor: '#000000' }]} key={node.key}>
-                        <CodeHighlighter
-                          hljsStyle={atomOneDark}
-                          textStyle={{
-                            fontSize: 14,
-                            lineHeight: 20,
-                            fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-                          }}
-                          scrollViewProps={{ 
-                            style: { backgroundColor: '#000000' },
-                            contentContainerStyle: { backgroundColor: '#000000' } 
-                          }}
-                          {...({ language } as any)}
-                        >
-                          {codeContent || ''}
-                        </CodeHighlighter>
-                        <TouchableOpacity 
-                          style={styles.codeBlockCopyButton}
-                          onPress={() => onCopyText(codeContent)}
-                          hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-                        >
-                          <MaterialCommunityIcons 
-                            name="content-copy" 
-                            size={14} 
-                            color={themeColors.headerText} 
-                          />
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  }
-                }}
-              >
-                {messageContent && messageContent.trim() ? messageContent : ''}
-              </Markdown>
+              <ChatMarkdown
+                content={messageContent}
+                isStreaming={isCurrentlyStreaming}
+                textColor={item.role === 'user' ? '#fff' : themeColors.text}
+                codeHeaderColor={themeColors.headerText}
+                onCopyCode={onCopyText}
+              />
             </View>
           )}
 
@@ -697,7 +631,7 @@ export default function ChatView({
                       style={styles.statIcon}
                     />
                     <Text style={[styles.statsText, { color: themeColors.secondaryText }]}> 
-                      1st token: {formatTime(stats.firstTokenTime)}
+                      TTFT: {formatTime(stats.firstTokenTime)}
                     </Text>
                   </View>
                 ) : null}
@@ -748,9 +682,69 @@ export default function ChatView({
             </View>
           ) : null}
         </View>
+
+        {item.role === 'user' && branchInfo && branchInfo.total > 1 ? (
+          <View style={[styles.branchNav, { alignSelf: 'flex-end' }]}>
+            <TouchableOpacity
+              onPress={() => {
+                const prevIdx = (branchInfo.current - 1 + branchInfo.total) % branchInfo.total;
+                markBranchSwitch(origIndex);
+                onSwitchBranch?.(branchInfo.branches[prevIdx]);
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.branchNavBtn}
+            >
+              <MaterialCommunityIcons name="chevron-left" size={18} color={themeColors.secondaryText} />
+            </TouchableOpacity>
+            <Text style={[styles.branchNavText, { color: themeColors.secondaryText }]}>
+              {branchInfo.current + 1}/{branchInfo.total}
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                const nextIdx = (branchInfo.current + 1) % branchInfo.total;
+                markBranchSwitch(origIndex);
+                onSwitchBranch?.(branchInfo.branches[nextIdx]);
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.branchNavBtn}
+            >
+              <MaterialCommunityIcons name="chevron-right" size={18} color={themeColors.secondaryText} />
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {item.role === 'assistant' && forkInfo && forkInfo.total > 1 ? (
+          <View style={[styles.branchNav, { alignSelf: 'flex-start' }]}>
+            <TouchableOpacity
+              onPress={() => {
+                const prevIdx = (forkInfo.current - 1 + forkInfo.total) % forkInfo.total;
+                markBranchSwitch(origIndex);
+                onSwitchBranch?.(forkInfo.forks[prevIdx]);
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.branchNavBtn}
+            >
+              <MaterialCommunityIcons name="chevron-left" size={18} color={themeColors.secondaryText} />
+            </TouchableOpacity>
+            <Text style={[styles.branchNavText, { color: themeColors.secondaryText }]}>
+              {forkInfo.current + 1}/{forkInfo.total}
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                const nextIdx = (forkInfo.current + 1) % forkInfo.total;
+                markBranchSwitch(origIndex);
+                onSwitchBranch?.(forkInfo.forks[nextIdx]);
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.branchNavBtn}
+            >
+              <MaterialCommunityIcons name="chevron-right" size={18} color={themeColors.secondaryText} />
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </View>
     );
-  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled, openImageViewer, startEditing, formatTime, formatDuration]);
+  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled, openImageViewer, startEditing, formatTime, formatDuration, branchInfoMap, forkInfoMap, onSwitchBranch, onForkChat]);
 
   const renderContent = () => {
     if (messages.length === 0) {
@@ -775,29 +769,73 @@ export default function ChatView({
         ref={flatListRef}
         data={[...messages].reverse()}
         renderItem={renderMessage}
-        keyExtractor={(item: Message) => item.id}
+        keyExtractor={(_item: Message, idx: number) => `msg-${idx}`}
+        extraData={chatId}
         contentContainerStyle={styles.messageList}
         inverted={true}
-        maintainVisibleContentPosition={{
-          minIndexForVisible: 0,
-          autoscrollToTopThreshold: 10,
-        }}
+        maintainVisibleContentPosition={
+          branchSwitchRef.current
+            ? { minIndexForVisible: 0 }
+            : { minIndexForVisible: 0, autoscrollToTopThreshold: 10 }
+        }
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={true}
         initialNumToRender={15}
-        removeClippedSubviews={Platform.OS === 'android'}
+        removeClippedSubviews={false}
         windowSize={10}
         maxToRenderPerBatch={10}
         updateCellsBatchingPeriod={50}
         onEndReachedThreshold={0.5}
         scrollIndicatorInsets={{ right: 1 }}
         onTouchStart={Keyboard.dismiss}
-        onLayout={() => {
-          if (flatListRef.current && messages.length > 0) {
-            flatListRef.current.scrollToOffset({ offset: 0, animated: false });
+        onContentSizeChange={() => {
+          if (!pendingAnchorRestoreRef.current) {
+            return;
           }
+          const anchorOrigIndex = branchAnchorIdxRef.current;
+          if (anchorOrigIndex === null || messages.length === 0 || !flatListRef.current) {
+            return;
+          }
+          const targetIndex = Math.max(
+            0,
+            Math.min(messages.length - 1, messages.length - 1 - anchorOrigIndex)
+          );
+          try {
+            flatListRef.current.scrollToIndex({
+              index: targetIndex,
+              animated: false,
+              viewPosition: 0.5,
+            });
+            pendingAnchorRestoreRef.current = false;
+          } catch (error) {
+          }
+        }}
+        onScrollToIndexFailed={({ index, averageItemLength }) => {
+          if (!flatListRef.current) {
+            return;
+          }
+          flatListRef.current.scrollToOffset({
+            offset: Math.max(0, averageItemLength * index),
+            animated: false,
+          });
+          setTimeout(() => {
+            const anchorOrigIndex = branchAnchorIdxRef.current;
+            if (anchorOrigIndex === null || messages.length === 0 || !flatListRef.current) {
+              return;
+            }
+            const targetIndex = Math.max(
+              0,
+              Math.min(messages.length - 1, messages.length - 1 - anchorOrigIndex)
+            );
+            flatListRef.current.scrollToIndex({
+              index: targetIndex,
+              animated: false,
+              viewPosition: 0.5,
+            });
+            pendingAnchorRestoreRef.current = false;
+          }, 32);
         }}
       />
     );
@@ -831,12 +869,27 @@ export default function ChatView({
                   color="#fff" 
                 />
               </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.imageViewerButton, styles.saveButton]}
+                onPress={saveImg}
+              >
+                <MaterialCommunityIcons
+                  name="content-save-outline"
+                  size={22}
+                  color="#fff"
+                />
+              </TouchableOpacity>
             </View>
             
             {fullScreenImage ? (
               <Image
                 source={{ uri: fullScreenImage }}
-                style={styles.fullScreenImage}
+                style={[
+                  styles.fullScreenImage,
+                  imgViewSize
+                    ? { width: imgViewSize.width, height: imgViewSize.height }
+                    : { width: Math.round(Dimensions.get('window').width * 0.9), height: Math.round(Dimensions.get('window').height * 0.8) }
+                ]}
                 resizeMode="contain"
               />
             ) : null}
@@ -1012,15 +1065,6 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     opacity: 0.9,
   },
-  codeBlockCopyButton: {
-    position: 'absolute',
-    bottom: 8,
-    right: 8,
-    padding: 6,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    zIndex: 1,
-  },
   loadingContainer: {
     padding: 12,
     flexDirection: 'row',
@@ -1135,9 +1179,12 @@ const styles = StyleSheet.create({
   closeButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
+  saveButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
   fullScreenImage: {
-    width: Dimensions.get('window').width,
-    height: Dimensions.get('window').height,
+    maxWidth: '100%',
+    maxHeight: '100%',
   },
   statItem: {
     flexDirection: 'row',
@@ -1145,5 +1192,21 @@ const styles = StyleSheet.create({
   },
   statIcon: {
     marginRight: 4,
+  },
+  branchNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginTop: 2,
+  },
+  branchNavBtn: {
+    padding: 4,
+  },
+  branchNavText: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginHorizontal: 4,
   },
 }); 

@@ -1,4 +1,5 @@
-import { NativeModules, Platform, PermissionsAndroid } from 'react-native';
+import { Platform, PermissionsAndroid } from 'react-native';
+import { requireNativeModule } from 'expo-modules-core';
 
 interface DownloadNotificationModuleInterface {
   requestPermissions?(): Promise<boolean>;
@@ -19,8 +20,6 @@ interface DownloadNotificationModuleInterface {
   cancelNotification(downloadId: string): Promise<boolean>;
 }
 
-const { DownloadNotificationModule } = NativeModules;
-
 const mockImplementation: DownloadNotificationModuleInterface = {
   requestPermissions: async () => false,
   showDownloadNotification: async () => false,
@@ -28,10 +27,12 @@ const mockImplementation: DownloadNotificationModuleInterface = {
   cancelNotification: async () => false,
 };
 
-const nativeModule: DownloadNotificationModuleInterface = 
-  DownloadNotificationModule 
-    ? DownloadNotificationModule 
-    : mockImplementation;
+let nativeModule: DownloadNotificationModuleInterface;
+try {
+  nativeModule = requireNativeModule('DownloadNotification');
+} catch (_) {
+  nativeModule = mockImplementation;
+}
 
 class DownloadNotifier {
   private hasPermission: boolean = false;

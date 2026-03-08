@@ -7,11 +7,12 @@ import {
   Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Button, Dialog, Portal } from 'react-native-paper';
+import Dialog from './Dialog';
 import * as DocumentPicker from 'expo-document-picker';
 import { useTheme } from '../context/ThemeContext';
 import { useModel } from '../context/ModelContext';
 import { llamaManager } from '../utils/LlamaManager';
+import { engineService } from '../services/inference-engine-service';
 
 interface MultimodalDialogProps {
   visible: boolean;
@@ -61,9 +62,9 @@ export default function MultimodalDialog({ visible, onDismiss }: MultimodalDialo
           userContent: 'What do you see in this image? Describe it in detail.',
         });
 
-        const response = await llamaManager.generateResponse([
+        const response = await engineService.mgr().gen([
           { role: 'user', content: photoMessage }
-        ]);
+        ] as any);
 
         setTestResult(`Vision test successful!\n\nImage: ${imageUri}\n\nAI Response: ${response}`);
       } else {
@@ -106,9 +107,9 @@ export default function MultimodalDialog({ visible, onDismiss }: MultimodalDialo
           userContent: 'Please transcribe or describe this audio file.',
         });
 
-        const response = await llamaManager.generateResponse([
+        const response = await engineService.mgr().gen([
           { role: 'user', content: audioMessage }
-        ]);
+        ] as any);
 
         setTestResult(`Audio test successful!\n\nAudio: ${audioUri}\n\nAI Response: ${response}`);
       } else {
@@ -153,8 +154,10 @@ export default function MultimodalDialog({ visible, onDismiss }: MultimodalDialo
   };
 
   return (
-    <Portal>
-      <Dialog visible={visible} onDismiss={onDismiss} style={[styles.dialog, { backgroundColor: colors.background }]}>
+    <Dialog visible={visible} onDismiss={onDismiss} style={[styles.dialog, { backgroundColor: colors.background }]}
+      buttonText="Close"
+      onClose={onDismiss}
+    >
         <Dialog.Title style={[styles.title, { color: colors.text }]}>
           Multimodal Test Suite
         </Dialog.Title>
@@ -202,11 +205,7 @@ export default function MultimodalDialog({ visible, onDismiss }: MultimodalDialo
             ) : null}
           </View>
         </Dialog.Content>
-        <Dialog.Actions>
-          <Button onPress={onDismiss}>Close</Button>
-        </Dialog.Actions>
       </Dialog>
-    </Portal>
   );
 }
 

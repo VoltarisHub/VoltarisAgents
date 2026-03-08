@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import { fs as FileSystem } from './fs';
 
 type ChatMessage = {
   id: string;
@@ -110,7 +110,8 @@ export class OpenAIService {
   async generateResponse(
     messages: ChatMessage[],
     options: OpenAIRequestOptions = {},
-    onToken?: (token: string) => boolean | void
+    onToken?: (token: string) => boolean | void,
+    provider = 'chatgpt'
   ): Promise<{
     fullResponse: string;
     tokenCount: number;
@@ -121,7 +122,7 @@ export class OpenAIService {
     let fullResponse = '';
 
     try {
-      const apiKey = await this.apiKeyProvider('chatgpt');
+      const apiKey = await this.apiKeyProvider(provider);
       if (!apiKey) {
         throw new Error('OpenAI API key not found. Please set it in Settings.');
       }
@@ -137,7 +138,7 @@ export class OpenAIService {
         formattedMessages.push(formattedMessage);
       }
 
-  const baseUrl = await this.baseUrlProvider('chatgpt');
+  const baseUrl = await this.baseUrlProvider(provider);
   const url = `${baseUrl}/chat/completions`;
       
       const requestBody = {

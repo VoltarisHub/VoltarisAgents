@@ -24,10 +24,12 @@ import { RootStackParamList, TabParamList } from '../types/navigation';
 import chatManager, { Chat, ChatMessage } from '../utils/ChatManager';
 import ChatView from '../components/chat/ChatView';
 import ChatInput from '../components/chat/ChatInput';
-import { onlineModelService } from '../services/OnlineModelService';
+import { onlineModelService, OnlineModelService } from '../services/OnlineModelService';
 import { useModel } from '../context/ModelContext';
-import { Dialog, Portal, Button, Text as PaperText } from 'react-native-paper';
+
+import Dialog from '../components/Dialog';
 import { useRemoteModel } from '../context/RemoteModelContext';
+import { engineService } from '../services/inference-engine-service';
 
 import { debounce, generateRandomId } from '../utils/homeScreenUtils';
 import { useDialog } from '../hooks/useDialog';
@@ -55,6 +57,16 @@ type HomeScreenProps = {
   route: RouteProp<TabParamList, 'HomeTab'>;
 };
 
+const remoteProviders: ProviderType[] = ['gemini', 'chatgpt', 'claude'];
+
+const isRemoteProvider = (provider: string | null): boolean => {
+  if (!provider) {
+    return false;
+  }
+  const baseProvider = OnlineModelService.getBaseProvider(provider);
+  return remoteProviders.includes(baseProvider as ProviderType);
+};
+
 export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const { theme: currentTheme, selectedTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -63,6 +75,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [isLoading, setIsLoading] = useState(false);
   const modelSelectorRef = useRef<ModelSelectorRef>(null);
   const [shouldOpenModelSelector, setShouldOpenModelSelector] = useState(false);
+  const closeModelSelector = useCallback(() => setShouldOpenModelSelector(false), []);
   const [preselectedModelPath, setPreselectedModelPath] = useState<string | null>(null);
   const [onlineModelProvider, setOnlineModelProvider] = useState<string | null>(null);
   const appStateRef = useRef(AppState.currentState);
@@ -74,7 +87,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [isCooldown, setIsCooldown] = useState(false);
   const [justCancelled, setJustCancelled] = useState(false);
 
-  const { dialogVisible, dialogTitle, dialogMessage, dialogActions, showDialog, hideDialog } = useDialog();
+  const { dialogVisible, dialogTitle, dialogMessage, dialogPrimaryText, dialogPrimaryPress, dialogSecondaryText, dialogSecondaryPress, showDialog, hideDialog } = useDialog();
   const { showCopyToast, copyToastMessage, showToast } = useCopyToast();
   const { showMemoryWarning, memoryWarningType, checkSystemMemory, handleMemoryWarningClose } = useMemoryWarning();
   
@@ -224,6 +237,28 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   }, [route.params?.modelPath, checkSystemMemory]);
 
   useEffect(() => {
+    if (activeProvider) return;
+
+    if (selectedModelPath === 'apple-foundation') {
+      setActiveProvider('apple-foundation');
+      chatManager.setCurrentProvider('apple-foundation');
+      return;
+    }
+
+    if (isRemoteProvider(selectedModelPath)) {
+      setActiveProvider(selectedModelPath as ProviderType);
+      chatManager.setCurrentProvider(selectedModelPath as ProviderType);
+      return;
+    }
+
+    const modelPath = engineService.getActiveModelPath();
+    if (modelPath) {
+      setActiveProvider('local');
+      chatManager.setCurrentProvider('local');
+    }
+  }, [activeProvider, selectedModelPath]);
+
+  useEffect(() => {
     const handleLoadChat = async () => {
       const loadChatId = route.params?.loadChatId || (route.params as any)?.params?.loadChatId;
 
@@ -295,9 +330,22 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
 
   const handleSend = async (text: string) => {
     const messageText = text.trim();
-    if (!messageText) return;
+    if (!messageText) {
+      return;
+    }
+
+    const providerFromSelection = selectedModelPath === 'apple-foundation'
+      ? 'apple-foundation'
+      : isRemoteProvider(selectedModelPath)
+        ? (selectedModelPath as ProviderType)
+        : null;
+    const effectiveProvider = activeProvider || providerFromSelection;
+    if (!activeProvider && providerFromSelection) {
+      setActiveProvider(providerFromSelection);
+      chatManager.setCurrentProvider(providerFromSelection);
+    }
     
-    if (!llamaManager.getModelPath() && !activeProvider) {
+    if (!engineService.getActiveModelPath() && !effectiveProvider) {
       setShouldOpenModelSelector(true);
       return;
     }
@@ -319,17 +367,20 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         showDialog(
           'Error',
           'Failed to add message to chat',
-          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
         return;
       }
+
+      const updatedChat = chatManager.getCurrentChat();
+      if (updatedChat) {
+        setMessages([...updatedChat.messages]);
+      }
       
-      await processMessage();
+      await processMessage(effectiveProvider);
     } catch (error) {
       showDialog(
         'Error',
         'Failed to send message',
-        [<Button key="ok" onPress={hideDialog}>OK</Button>]
       );
     } finally {
       setIsLoading(false);
@@ -434,25 +485,15 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     }
   }, [isLoading, isRegenerating, isStreaming, activeProvider]);
 
-  const handleApiError = (error: unknown, provider: 'Gemini' | 'OpenAI' | 'DeepSeek' | 'Claude') => {
+  const handleApiError = (error: unknown, provider: 'Gemini' | 'OpenAI' | 'Claude') => {
     
     if (error instanceof Error) {
       if (error.message.startsWith('QUOTA_EXCEEDED:')) {
         showDialog(
           `${provider} API Quota Exceeded`,
           `Your ${provider} API quota has been exceeded. Please try again later or upgrade your API plan.`,
-          [
-            <Button 
-              key="settings" 
-              onPress={() => {
-                hideDialog();
-                navigation.navigate('MainTabs', { screen: 'SettingsTab' });
-              }}
-            >
-              Go to Settings
-            </Button>,
-            <Button key="ok" onPress={hideDialog}>OK</Button>
-          ]
+          { label: 'Go to Settings', onPress: () => { hideDialog(); navigation.navigate('MainTabs', { screen: 'SettingsTab' }); } },
+          { label: 'OK', onPress: hideDialog }
         );
         return;
       }
@@ -461,18 +502,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         showDialog(
           `${provider} API Authentication Error`,
           `Your ${provider} API key appears to be invalid. Please check your API key in Settings.`,
-          [
-            <Button 
-              key="settings" 
-              onPress={() => {
-                hideDialog();
-                navigation.navigate('MainTabs', { screen: 'SettingsTab' });
-              }}
-            >
-              Go to Settings
-            </Button>,
-            <Button key="ok" onPress={hideDialog}>OK</Button>
-          ]
+          { label: 'Go to Settings', onPress: () => { hideDialog(); navigation.navigate('MainTabs', { screen: 'SettingsTab' }); } },
+          { label: 'OK', onPress: hideDialog }
         );
         return;
       }
@@ -481,7 +512,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         showDialog(
           'Content Policy Violation',
           'Your request was blocked due to content policy violations. Please modify your message and try again.',
-          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
         return;
       }
@@ -490,7 +520,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         showDialog(
           'Message Too Long',
           'Your message is too long for the model\'s context window. Please shorten your input or start a new chat.',
-          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
         return;
       }
@@ -499,7 +528,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         showDialog(
           `${provider} Server Error`,
           `The ${provider} API is currently experiencing issues. Please try again later.`,
-          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
         return;
       }
@@ -508,7 +536,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         showDialog(
           'Invalid Request',
           `The request to the ${provider} API was invalid. Please try again with different input.`,
-          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
         return;
       }
@@ -517,7 +544,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         showDialog(
           'Permission Denied',
           `You don't have permission to access this ${provider} model or feature.`,
-          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
         return;
       }
@@ -526,7 +552,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         showDialog(
           'Model Not Found',
           `The requested ${provider} model was not found. It may be deprecated or unavailable.`,
-          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
         return;
       }
@@ -534,34 +559,35 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       showDialog(
         `${provider} API Error`,
         error.message,
-        [<Button key="ok" onPress={hideDialog}>OK</Button>]
       );
     } else {
       showDialog(
         `${provider} API Error`,
         'Unknown error occurred',
-        [<Button key="ok" onPress={hideDialog}>OK</Button>]
       );
     }
   };
 
-  const processMessage = async () => {
+  const processMessage = async (providerOverride?: ProviderType | null) => {
+    const provider = providerOverride ?? activeProvider;
     const currentChat = chatManager.getCurrentChat();
     if (!currentChat) return;
 
     try {
       await stopGenerationIfRunning();
-      const settings = await getEffectiveSettings();
-      
+      const settings = providerOverride
+        ? await ChatLifecycleService.getEffectiveSettings(providerOverride)
+        : await getEffectiveSettings();
+
       await messageProcessingService.processMessage(
-        activeProvider,
+        provider,
         settings
       );
     } catch (error) {
+      console.log('local_process_message_error', error instanceof Error ? error.message : 'unknown');
       showDialog(
         'Error',
-        'Failed to generate response',
-        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+        'Failed to generate response. Model might not be supported.',
       );
       resetStreamingState();
     }
@@ -575,6 +601,24 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   };
 
   const handleEditingStateChange = useCallback((isEditing: boolean) => {
+  }, []);
+
+  const handleSwitchBranch = useCallback(async (branchChatId: string) => {
+    handleCancelEdit();
+    await chatManager.setCurrentChat(branchChatId, true);
+    const branchChat = chatManager.getChatById(branchChatId);
+    if (branchChat) {
+      setChat(branchChat);
+      setMessages([...branchChat.messages]);
+    }
+  }, [handleCancelEdit]);
+
+  const handleForkChat = useCallback(async (fromMsgIndex: number) => {
+    const fork = await chatManager.forkChat(fromMsgIndex);
+    if (fork) {
+      setChat(fork);
+      setMessages([...fork.messages]);
+    }
   }, []);
 
   const handleRegenerate = async () => {
@@ -596,7 +640,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           error.message === 'No valid model selected' 
             ? 'Please select a model first to regenerate a response.'
             : 'Failed to regenerate response',
-          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
       }
     } finally {
@@ -611,12 +654,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       showDialog(
         'Error',
         'Failed to create new chat',
-        [<Button key="ok" onPress={hideDialog}>OK</Button>]
       );
     }
   };
 
-  const handleModelSelect = async (model: ProviderType, modelPath?: string, projectorPath?: string) => {
+  const handleModelSelect = useCallback(async (model: ProviderType, modelPath?: string, projectorPath?: string) => {
     await ModelManagementService.handleModelSelect(
       {
         model,
@@ -635,7 +677,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       hideDialog,
       navigation
     );
-  };
+  }, [isLoading, isRegenerating, enableRemoteModels, isLoggedIn, loadModel, unloadModel, showDialog, hideDialog, navigation]);
 
   useEffect(() => {
     const cleanup = ModelManagementService.setupModelChangeListeners(
@@ -686,7 +728,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
          <ModelSelectorComponent
             modelSelectorRef={modelSelectorRef}
             shouldOpenModelSelector={shouldOpenModelSelector}
-            onClose={() => setShouldOpenModelSelector(false)}
+            onClose={closeModelSelector}
             activeProvider={activeProvider}
             isLoading={isLoading || false}
             isRegenerating={isRegenerating || false}
@@ -715,6 +757,9 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
            onStopGeneration={stopGenerationIfRunning}
            onEditingStateChange={handleEditingStateChange}
            onStartEdit={handleStartEdit}
+           chatId={chat?.id}
+           onSwitchBranch={handleSwitchBranch}
+           onForkChat={handleForkChat}
         />
 
         <ChatInput
@@ -742,19 +787,16 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         onClose={handleMemoryWarningClose}
       />
 
-      <Portal>
-        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
-          <Dialog.Title>{dialogTitle}</Dialog.Title>
-          <Dialog.Content>
-            <PaperText>{dialogMessage}</PaperText>
-          </Dialog.Content>
-          <Dialog.Actions>
-            {dialogActions.map((ActionComponent, index) =>
-              React.isValidElement(ActionComponent) ? React.cloneElement(ActionComponent, { key: index }) : null
-            )}
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <Dialog
+        visible={dialogVisible}
+        onDismiss={hideDialog}
+        title={dialogTitle}
+        description={dialogMessage}
+        primaryButtonText={dialogPrimaryText}
+        onPrimaryPress={dialogPrimaryPress}
+        secondaryButtonText={dialogSecondaryText}
+        onSecondaryPress={dialogSecondaryPress}
+      />
     </SafeAreaView>
   );
 }

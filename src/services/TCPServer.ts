@@ -1,13 +1,13 @@
 import TcpSocket from 'react-native-tcp-socket';
 import * as Network from 'expo-network';
-import * as FileSystem from 'expo-file-system';
+import { fs as FileSystem } from './fs';
 import Constants from 'expo-constants';
 import { loadLlamaModelInfo } from 'llama.rn';
 import { Buffer } from 'buffer';
 import { modelDownloader } from './ModelDownloader';
 import { modelSettingsService, type ModelSettings } from './ModelSettingsService';
 import { StoredModel } from './ModelDownloaderTypes';
-import { llamaManager } from '../utils/LlamaManager';
+import { engineService } from './inference-engine-service';
 import { logger } from '../utils/logger';
 import type { ApiHandler, StatusHandler } from './tcp/http/apiTypes';
 import { createChatApiHandler } from './tcp/http/chatApiHandler';
@@ -296,15 +296,13 @@ export class TCPServer {
         this.createHttpError(404, 'model_not_found');
       }
     } else {
-      if (this.activeModel && llamaManager.isInitialized() && llamaManager.getModelPath() === this.activeModel.path) {
+      const activePath = engineService.getActiveModelPath();
+      if (this.activeModel && activePath === this.activeModel.path) {
         target = this.findStoredModel(this.activeModel.path, models) || this.findStoredModel(this.activeModel.name, models);
       }
 
-      if (!target && llamaManager.isInitialized()) {
-        const currentPath = llamaManager.getModelPath();
-        if (currentPath) {
-          target = this.findStoredModel(currentPath, models);
-        }
+      if (!target && activePath) {
+        target = this.findStoredModel(activePath, models);
       }
 
       if (!target) {
@@ -320,11 +318,11 @@ export class TCPServer {
       ? models.find(item => item.name === target!.defaultProjectionModel || item.path === target!.defaultProjectionModel)?.path
       : undefined;
 
-    const isInitialized = llamaManager.isInitialized();
-    const currentPath = llamaManager.getModelPath();
+    const isInitialized = engineService.ready();
+    const currentPath = engineService.getActiveModelPath();
 
     if (!isInitialized || currentPath !== target.path) {
-      await llamaManager.loadModel(target.path, projectorPath);
+      await engineService.initModel(target.path, projectorPath);
       this.activeModel = { path: target.path, name: target.name, startedAt: new Date().toISOString() };
     } else if (!this.activeModel || this.activeModel.path !== target.path) {
       this.activeModel = { path: target.path, name: target.name, startedAt: new Date().toISOString() };
@@ -467,8 +465,8 @@ export class TCPServer {
         method,
         path,
         this.sendJSONResponse.bind(this),
-        () => llamaManager.isInitialized(),
-        () => llamaManager.getModelPath(),
+        () => engineService.getActiveModelPath() !== null,
+        () => engineService.getActiveModelPath(),
         this.findStoredModel.bind(this),
         getFileSize,
         () => this.activeModel

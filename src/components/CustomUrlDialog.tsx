@@ -19,7 +19,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { TabParamList } from '../types/navigation';
-import { Dialog, Portal, PaperProvider, Text, Button } from 'react-native-paper';
+import { Text } from 'react-native-paper';
+import Dialog from './Dialog';
 
 interface CustomUrlDialogProps {
   visible: boolean;
@@ -202,17 +203,14 @@ const CustomUrlDialog = ({ visible, onClose, onDownloadStart, navigation }: Cust
         </View>
       </View>
 
-      <Portal>
-        <Dialog visible={dialogVisible} onDismiss={hideAppDialog}>
-          <Dialog.Title>{dialogTitle}</Dialog.Title>
-          <Dialog.Content>
-            <Text variant="bodyMedium">{dialogMessage}</Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={hideAppDialog}>OK</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <Dialog
+        visible={dialogVisible}
+        onDismiss={hideAppDialog}
+        title={dialogTitle}
+        description={dialogMessage}
+        buttonText="OK"
+        onClose={hideAppDialog}
+      />
     </Modal>
   );
 };

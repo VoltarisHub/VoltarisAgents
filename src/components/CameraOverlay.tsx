@@ -13,8 +13,11 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   ScrollView,
+  Image,
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
+import Slider from '@react-native-community/slider';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
@@ -51,11 +54,23 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken, useRag =
   const [processingMode, setProcessingMode] = useState<ImageProcessingMode>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState('');
+  const [imgCompress, setImgCompress] = useState(0.6);
+  const [scrollEnabled, setScrollEnabled] = useState(true);
   const cameraRef = useRef<CameraView>(null);
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const isDark = currentTheme === 'dark';
   const insets = useSafeAreaInsets();
+
+  const getImgSize = (uri: string): Promise<{ width: number; height: number }> => {
+    return new Promise((resolve, reject) => {
+      Image.getSize(
+        uri,
+        (width, height) => resolve({ width, height }),
+        error => reject(error)
+      );
+    });
+  };
 
 
   const toggleCameraFacing = () => {
@@ -88,14 +103,36 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken, useRag =
 
     try {
       setIsProcessing(true);
+      setProcessingProgress('Optimizing image...');
+
+      const { width, height } = await getImgSize(capturedPhotoUri);
+      const sizePct = Math.max(0.01, Math.min(1, imgCompress));
+      const sizeRatio = (sizePct - 0.01) / 0.99;
+      const targetHeight = Math.round(100 + Math.max(0, height - 100) * sizeRatio);
+      const targetWidth = Math.min(width, Math.max(1, Math.round((width / height) * targetHeight)));
+      const quality = 0.2 + sizePct * 0.8;
+      const actions = (targetWidth !== width || targetHeight !== height)
+        ? [{ resize: { width: targetWidth, height: targetHeight } }]
+        : [];
+
+      const processed = await manipulateAsync(
+        capturedPhotoUri,
+        actions,
+        {
+          compress: quality,
+          format: SaveFormat.JPEG,
+        }
+      );
+
+      const imgUri = processed?.uri || capturedPhotoUri;
       
       if (processingMode === 'ocr') {
-        const extractedText = await performOCROnImage(capturedPhotoUri, setProcessingProgress);
-        const ocrMessage = createOCRMessage(extractedText, capturedPhotoUri, 'camera_photo', userPrompt);
-        onPhotoTaken(capturedPhotoUri, ocrMessage);
+        const extractedText = await performOCROnImage(imgUri, setProcessingProgress);
+        const ocrMessage = createOCRMessage(extractedText, imgUri, 'camera_photo', userPrompt);
+        onPhotoTaken(imgUri, ocrMessage);
       } else if (processingMode === 'multimodal') {
-        const multimodalMessage = createMultimodalMessage(capturedPhotoUri, userPrompt);
-        onPhotoTaken(capturedPhotoUri, multimodalMessage);
+        const multimodalMessage = createMultimodalMessage(imgUri, userPrompt);
+        onPhotoTaken(imgUri, multimodalMessage);
       }
       
       setShowPromptDialog(false);
@@ -214,6 +251,7 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken, useRag =
               contentContainerStyle={styles.scrollContainer}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
+              scrollEnabled={scrollEnabled}
             >
               <View style={[styles.promptDialog, { backgroundColor: themeColors.background }]}>
                 <Text style={[styles.promptTitle, { color: themeColors.text }]}>
@@ -236,7 +274,7 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken, useRag =
                     : 'What would you like to ask about this image?'
                   }
                 </Text>
-                
+
                 <TextInput
                   style={[
                     styles.promptInput,
@@ -258,6 +296,25 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken, useRag =
                   maxLength={500}
                   editable={!isProcessing}
                 />
+
+                <View style={styles.compWrap}>
+                  <View style={styles.compHead}>
+                    <Text style={[styles.compLabel, { color: themeColors.text }]}>Image Size + Quality</Text>
+                    <Text style={[styles.compValue, { color: themeColors.secondaryText }]}>{Math.round(imgCompress * 100)}%</Text>
+                  </View>
+                  <Slider
+                    minimumValue={0.01}
+                    maximumValue={1}
+                    step={0.01}
+                    value={imgCompress}
+                    onValueChange={setImgCompress}
+                    onSlidingStart={() => setScrollEnabled(false)}
+                    onSlidingComplete={() => setScrollEnabled(true)}
+                    disabled={isProcessing}
+                    minimumTrackTintColor={getThemeAwareColor('#4a0660', currentTheme)}
+                    thumbTintColor={getThemeAwareColor('#4a0660', currentTheme)}
+                  />
+                </View>
 
                 {isProcessing && (
                   <View style={styles.processingContainer}>
@@ -491,5 +548,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 20,
     minWidth: '100%',
+  },
+  compWrap: {
+    marginTop: 8,
+    marginBottom: 10,
+  },
+  compHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  compLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  compValue: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginBottom: 4,
   },
 }); 

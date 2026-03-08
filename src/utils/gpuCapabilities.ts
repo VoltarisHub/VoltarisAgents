@@ -1,35 +1,41 @@
-import { NativeModules, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import * as Device from 'expo-device';
+import { requireNativeModule } from 'expo-modules-core';
 
-const { DeviceInfoModule } = NativeModules as {
-  DeviceInfoModule?: {
-    getGPUInfo?: () => Promise<{ 
-      hasAdreno?: boolean;
-      renderer?: string;
-      vendor?: string;
-      version?: string;
-      hasMali?: boolean;
-      hasPowerVR?: boolean;
-      supportsOpenCL?: boolean;
-      gpuType?: string;
+interface DeviceInfoModuleInterface {
+  getGPUInfo?: () => Promise<{
+    hasAdreno?: boolean;
+    renderer?: string;
+    vendor?: string;
+    version?: string;
+    hasMali?: boolean;
+    hasPowerVR?: boolean;
+    supportsOpenCL?: boolean;
+    gpuType?: string;
+  }>;
+  getCPUInfo?: () => Promise<{
+    cores?: number;
+    hasI8mm?: boolean;
+    hasDotProd?: boolean;
+    hasFp16?: boolean;
+    hasSve?: boolean;
+    socModel?: string;
+    features?: string[];
+    processors?: Array<{
+      processor?: string;
+      'model name'?: string;
+      'cpu MHz'?: string;
+      vendor_id?: string;
     }>;
-    getCPUInfo?: () => Promise<{
-      cores?: number;
-      hasI8mm?: boolean;
-      hasDotProd?: boolean;
-      hasFp16?: boolean;
-      hasSve?: boolean;
-      socModel?: string;
-      features?: string[];
-      processors?: Array<{
-        processor?: string;
-        'model name'?: string;
-        'cpu MHz'?: string;
-        vendor_id?: string;
-      }>;
-    }>;
-  };
-};
+  }>;
+}
+
+let DeviceInfoModule: DeviceInfoModuleInterface | undefined;
+try {
+  DeviceInfoModule = requireNativeModule('DeviceInfo');
+} catch (_) {
+  DeviceInfoModule = undefined;
+}
 
 export type GpuSupportReason = 'ios_version' | 'no_adreno' | 'missing_cpu_features' | 'unknown';
 

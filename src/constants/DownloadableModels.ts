@@ -2,46 +2,47 @@ import { DownloadableModel } from "../components/model/DownloadableModelItem";
 import { ModelType } from "../types/models";
 
 export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
-  // {
-  //   "name": "Ministral 3 3B Instruct",
-  //   "description": "Mistral's compact vision-language model with 256K context, multilingual support, and strong adherence to system prompts.",
-  //   "size": "2.15 GB",
-  //   "huggingFaceLink": "https://huggingface.co/unsloth/Ministral-3-3B-Instruct-2512-GGUF/resolve/main/Ministral-3-3B-Instruct-2512-Q4_0.gguf",
-  //   "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
-  //   "modelFamily": "3 Billion",
-  //   "quantization": "Q4_K_M",
-  //   "tags": ["vision", "fastest", "recommended"],
-  //   "modelType": ModelType.VISION,
-  //   "capabilities": ["vision", "text"],
-  //   "supportsMultimodal": true,
-  //   "additionalFiles": [
-  //     {
-  //       "name": "Ministral-3-3B-Instruct-2512-BF16-mmproj.gguf",
-  //       "url": "https://huggingface.co/unsloth/Ministral-3-3B-Instruct-2512-GGUF/resolve/main/mmproj-BF16.gguf",
-  //       "description": "Multimodal projector for Ministral 3 3B"
-  //     }
-  //   ]
-  // },
-  // {
-  //   "name": "Ministral 3 8B Reasoning",
-  //   "description": "Mistral's reasoning model with vision capabilities, optimized for complex multi-step reasoning, math, and coding tasks.",
-  //   "size": "5.2 GB",
-  //   "huggingFaceLink": "https://huggingface.co/unsloth/Ministral-3-8B-Reasoning-2512-GGUF/resolve/main/Ministral-3-8B-Reasoning-2512-Q4_K_M.gguf",
-  //   "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
-  //   "modelFamily": "8 Billion",
-  //   "quantization": "Q4_K_M",
-  //   "tags": ["reasoning", "vision"],
-  //   "modelType": ModelType.VISION,
-  //   "capabilities": ["vision", "text"],
-  //   "supportsMultimodal": true,
-  //   "additionalFiles": [
-  //     {
-  //       "name": "Ministral-3-8B-Reasoning-2512-BF16-mmproj.gguf",
-  //       "url": "https://huggingface.co/unsloth/Ministral-3-8B-Reasoning-2512-GGUF/resolve/main/mmproj-BF16.gguf",
-  //       "description": "Multimodal projector for Ministral 3 8B Reasoning"
-  //     }
-  //   ]
-  // },
+  {
+    "name": "Ministral 3 3B Instruct",
+    "description": "Mistral's compact vision-language model with 256K context, multilingual support, and strong adherence to system prompts.",
+    "size": "2.15 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/Ministral-3-3B-Instruct-2512-GGUF/resolve/main/Ministral-3-3B-Instruct-2512-Q4_0.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
+    "modelFamily": "3 Billion",
+    "quantization": "Q4_K_M",
+    "tags": ["vision", "fastest", "recommended"],
+    "modelType": ModelType.VISION,
+    "capabilities": ["vision", "text"],
+    "supportsMultimodal": true,
+    "additionalFiles": [
+      {
+        "name": "Ministral-3-3B-Instruct-2512-BF16-mmproj.gguf",
+        "url": "https://huggingface.co/unsloth/Ministral-3-3B-Instruct-2512-GGUF/resolve/main/mmproj-BF16.gguf",
+        "description": "Multimodal projector for Ministral 3 3B"
+      }
+    ]
+  },
+  
+  {
+    "name": "Ministral 3 8B Reasoning",
+    "description": "Mistral's reasoning model with vision capabilities, optimized for complex multi-step reasoning, math, and coding tasks.",
+    "size": "5.2 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/Ministral-3-8B-Reasoning-2512-GGUF/resolve/main/Ministral-3-8B-Reasoning-2512-Q4_K_M.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
+    "modelFamily": "8 Billion",
+    "quantization": "Q4_K_M",
+    "tags": ["reasoning", "vision"],
+    "modelType": ModelType.VISION,
+    "capabilities": ["vision", "text"],
+    "supportsMultimodal": true,
+    "additionalFiles": [
+      {
+        "name": "Ministral-3-8B-Reasoning-2512-BF16-mmproj.gguf",
+        "url": "https://huggingface.co/unsloth/Ministral-3-8B-Reasoning-2512-GGUF/resolve/main/mmproj-BF16.gguf",
+        "description": "Multimodal projector for Ministral 3 8B Reasoning"
+      }
+    ]
+  },
   {
     "name": "Gemma 3n-E4B Instruct (Q2_K)",
     "description": "Google's enhanced Gemma 3 variant with optimized efficiency and fast inference capabilities.",
@@ -91,6 +92,26 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "modelFamily": "1 Billion",
     "quantization": "Q8_0",
     "tags": ["recommended", "fastest"]
+  },
+  {
+    "name": "Qwen3.5 0.8B Instruct",
+    "description": "Latest compact Qwen 3.5 instruct model optimized for low-memory on-device usage.",
+    "size": "0.53 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
+    "modelFamily": "800 Million",
+    "quantization": "Q4_K_M",
+    "tags": ["fastest"]
+  },
+  {
+    "name": "Qwen3.5 2B Instruct",
+    "description": "Latest Qwen 3.5 instruct model balancing speed and quality for mobile devices.",
+    "size": "1.28 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/main/Qwen3.5-2B-Q4_K_M.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
+    "modelFamily": "2 Billion",
+    "quantization": "Q4_K_M",
+    "tags": ["fastest"]
   },
   {
     "name": "SmolVLM2 500M Video Instruct",
@@ -173,6 +194,16 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "tags": ["recommended"]
   },
   {
+    "name": "Qwen3.5 4B Instruct",
+    "description": "Latest Qwen 3.5 instruct model with stronger reasoning and instruction following.",
+    "size": "2.74 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
+    "modelFamily": "4 Billion",
+    "quantization": "Q4_K_M",
+    "tags": ["recommended"]
+  },
+  {
     "name": "Gemma 3n-E4B Instruct (Q4_K_S)",
     "description": "Google's enhanced Gemma 3 variant with balanced performance and quality optimization.",
     "size": "4.1 GB",
@@ -180,16 +211,6 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "licenseLink": "https://ai.google.dev/gemma/terms",
     "modelFamily": "4 Billion",
     "quantization": "Q4_K_S",
-  },
-  {
-    "name": "DeepSeek-R1 Distill Qwen",
-    "description": "Highly optimized distillation of DeepSeek's R1 model using Qwen architecture for improved efficiency.",
-    "size": "1.89 GB",
-    "huggingFaceLink": "https://huggingface.co/unsloth/DeepSeek-R1-Distill-Qwen-1.5B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-1.5B-Q8_0.gguf",
-    "licenseLink": "https://github.com/deepseek-ai/DeepSeek-LLM/blob/main/LICENSE-MODEL",
-    "modelFamily": "1.5 Billion",
-    "quantization": "Q8_0",
-    "tags": ["fastest"]
   },
   {
     "name": "Phi-3 Mini Instruct",
@@ -241,25 +262,6 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "quantization": "Q3_K_S"
   },
   {
-    "name": "DeepSeek-R1 Distill Llama",
-    "description": "Distilled version of DeepSeek's R1 model with balanced performance and efficiency.",
-    "size": "3.8 GB",
-    "huggingFaceLink": "https://huggingface.co/unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF/resolve/main/DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf",
-    "licenseLink": "https://github.com/deepseek-ai/DeepSeek-LLM/blob/main/LICENSE-MODEL",
-    "modelFamily": "7 Billion",
-    "quantization": "Q4_K_M"
-  },
-  {
-    "name": "DeepSeek-R1-0528 Qwen3 8B",
-    "description": "Latest DeepSeek R1 reasoning model based on Qwen3 architecture with enhanced logical thinking capabilities.",
-    "size": "4.8 GB",
-    "huggingFaceLink": "https://huggingface.co/unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF/resolve/main/DeepSeek-R1-0528-Qwen3-8B-Q4_K_M.gguf",
-    "licenseLink": "https://github.com/deepseek-ai/DeepSeek-LLM/blob/main/LICENSE-MODEL",
-    "modelFamily": "8 Billion",
-    "quantization": "Q4_K_M",
-    "tags": ["reasoning"]
-  },
-  {
     "name": "Mistral Instruct",
     "description": "Instruction-tuned version of Mistral's powerful base model with excellent reasoning abilities.",
     "size": "4.1 GB",
@@ -269,15 +271,6 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "quantization": "Q4_K_M"
   },
   {
-    "name": "DeepSeek Base",
-    "description": "Foundation model from DeepSeek trained on diverse data with strong general capabilities.",
-    "size": "4.6 GB",
-    "huggingFaceLink": "https://huggingface.co/TheBloke/deepseek-llm-7B-base-GGUF/resolve/main/deepseek-llm-7b-base.Q4_K_S.gguf",
-    "licenseLink": "https://github.com/deepseek-ai/DeepSeek-LLM/blob/main/LICENSE-MODEL",
-    "modelFamily": "8 Billion",
-    "quantization": "Q4_K_S"
-  },
-  {
     "name": "LLaMA 3.1 Instruct",
     "description": "Meta's latest instruction-tuned model with improved reasoning and instruction following.",
     "size": "4.7 GB",
@@ -285,15 +278,6 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "licenseLink": "https://ai.meta.com/llama/license/",
     "modelFamily": "8 Billion",
     "quantization": "Q4_K_M"
-  },
-  {
-    "name": "DeepSeek Coder Instruct",
-    "description": "Specialized coding assistant trained on high-quality programming data with instruction tuning.",
-    "size": "4.8 GB",
-    "huggingFaceLink": "https://huggingface.co/TheBloke/deepseek-coder-6.7B-instruct-GGUF/resolve/main/deepseek-coder-6.7b-instruct-Q6_K.gguf",
-    "licenseLink": "https://github.com/deepseek-ai/DeepSeek-LLM/blob/main/LICENSE-MODEL",
-    "modelFamily": "6.7 Billion",
-    "quantization": "Q6_K"
   },
   {
     "name": "CodeGemma Instruct",
@@ -350,6 +334,16 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "licenseLink": "https://ai.google.dev/gemma/terms",
     "modelFamily": "9 Billion",
     "quantization": "Q4_K_M"
+  },
+  {
+    "name": "Qwen3.5 9B Instruct",
+    "description": "Latest Qwen 3.5 9B instruct model for higher quality responses and reasoning.",
+    "size": "5.68 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/Qwen3.5-9B-Q4_K_M.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
+    "modelFamily": "9 Billion",
+    "quantization": "Q4_K_M",
+    "tags": ["reasoning"]
   },
   {
     "name": "Phi-4 Reasoning Plus",

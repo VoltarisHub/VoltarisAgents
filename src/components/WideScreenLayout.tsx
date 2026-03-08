@@ -33,6 +33,10 @@ export default function WideScreenLayout({}: WideScreenLayoutProps) {
   const navigation = useNavigation();
   const route = useRoute();
 
+  const routeParams = (route as any)?.params as { screen?: string; params?: any } | undefined;
+  const targetScreen = routeParams?.screen;
+  const modelRoute = targetScreen === 'ModelTab' ? { params: routeParams?.params } : undefined;
+
   const [sidebarWidth, setSidebarWidth] = useState(screenWidth * 0.3);
   const [isDragging, setIsDragging] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -79,6 +83,22 @@ export default function WideScreenLayout({}: WideScreenLayoutProps) {
   useEffect(() => {
     setIsDragging(false);
   }, [sidebarWidth]);
+
+  useEffect(() => {
+    if (targetScreen === 'ModelTab') {
+      setActiveTab('models');
+      return;
+    }
+
+    if (targetScreen === 'LocalServerTab') {
+      setActiveTab('server');
+      return;
+    }
+
+    if (targetScreen === 'SettingsTab') {
+      setActiveTab('settings');
+    }
+  }, [targetScreen]);
 
   const onPanGestureEvent = (event: any) => {
     const { translationX } = event.nativeEvent;
@@ -160,13 +180,13 @@ export default function WideScreenLayout({}: WideScreenLayoutProps) {
   const renderSidebarContent = () => {
     switch (activeTab) {
       case 'models':
-        return <ModelScreen navigation={navigation as any} />;
+        return <ModelScreen navigation={navigation as any} route={modelRoute as any} />;
       case 'server':
         return <LocalServerScreen />;
       case 'settings':
         return <SettingsScreen navigation={navigation as any} />;
       default:
-        return <ModelScreen navigation={navigation as any} />;
+        return <ModelScreen navigation={navigation as any} route={modelRoute as any} />;
     }
   };
 

@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import DownloadableModelItem, { DownloadableModel } from './DownloadableModelItem';
 import { modelDownloader } from '../../services/ModelDownloader';
-import { Dialog, Portal, PaperProvider, Text, Button } from 'react-native-paper';
+import Dialog from '../Dialog';
 
 interface DownloadableModelListProps {
   models: DownloadableModel[];
@@ -158,17 +158,14 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
         />
       ))}
 
-      <Portal>
-        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
-          <Dialog.Title>{dialogTitle}</Dialog.Title>
-          <Dialog.Content>
-            <Text>{dialogMessage}</Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={hideDialog}>OK</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <Dialog
+        visible={dialogVisible}
+        onDismiss={hideDialog}
+        title={dialogTitle}
+        description={dialogMessage}
+        buttonText="OK"
+        onClose={hideDialog}
+      />
     </ScrollView>
   );
 };

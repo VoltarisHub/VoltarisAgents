@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import { fs as FileSystem } from './fs';
 
 type ChatMessage = {
   id: string;
@@ -102,7 +102,8 @@ export class GeminiService {
   async generateResponse(
     messages: ChatMessage[],
     options: GeminiRequestOptions = {},
-    onToken?: (token: string) => boolean | void
+    onToken?: (token: string) => boolean | void,
+    provider = 'gemini'
   ): Promise<{
     fullResponse: string;
     tokenCount: number;
@@ -113,7 +114,7 @@ export class GeminiService {
     let fullResponse = '';
 
     try {
-      const apiKey = await this.apiKeyProvider('gemini');
+      const apiKey = await this.apiKeyProvider(provider);
       if (!apiKey) {
         throw new Error('Gemini API key not found. Please set it in Settings.');
       }
@@ -144,7 +145,7 @@ export class GeminiService {
       }
 
   const modelPath = model.startsWith('models/') ? model : `models/${model}`;
-  const baseUrl = await this.baseUrlProvider('gemini');
+  const baseUrl = await this.baseUrlProvider(provider);
   const url = `${baseUrl}/${modelPath}:${shouldStreamTokens ? 'streamGenerateContent' : 'generateContent'}?key=${apiKey}`;
 
       const requestBody = {

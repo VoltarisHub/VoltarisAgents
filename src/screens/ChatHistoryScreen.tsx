@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -14,30 +14,25 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import chatManager, { Chat } from '../utils/ChatManager';
 import AppHeader from '../components/AppHeader';
-import { Dialog, Portal, Text, Button } from 'react-native-paper';
+import { Text } from 'react-native-paper';
+import Dialog from '../components/Dialog';
+import { useDialog } from '../hooks/useDialog';
+
+const PAGE_SIZE = 15;
 
 export default function ChatHistoryScreen() {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
+  const allChatsRef = useRef<Chat[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+  const pageRef = useRef(1);
 
-  const [dialogVisible, setDialogVisible] = useState(false);
-  const [dialogTitle, setDialogTitle] = useState('');
-  const [dialogMessage, setDialogMessage] = useState('');
-  const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
-
-  const hideDialog = () => setDialogVisible(false);
-
-  const showDialog = (title: string, message: string, actions: React.ReactNode[]) => {
-    setDialogTitle(title);
-    setDialogMessage(message);
-    setDialogActions(actions);
-    setDialogVisible(true);
-  };
+  const { dialogVisible, dialogTitle, dialogMessage, dialogPrimaryText, dialogPrimaryPress, dialogSecondaryText, dialogSecondaryPress, showDialog, hideDialog } = useDialog();
 
   useEffect(() => {
     setIsLoading(true);
@@ -54,8 +49,10 @@ export default function ChatHistoryScreen() {
   
   const loadChats = useCallback(async () => {
     try {
-      const allChats = chatManager.getAllChats();
-      setChats(allChats);
+      const roots = chatManager.getRootChats();
+      allChatsRef.current = roots;
+      pageRef.current = 1;
+      setChats(roots.slice(0, PAGE_SIZE));
       setCurrentChatId(chatManager.getCurrentChatId());
     } catch (error) {
     } finally {
@@ -63,18 +60,30 @@ export default function ChatHistoryScreen() {
     }
   }, []);
 
+  const loadMore = useCallback(() => {
+    const all = allChatsRef.current;
+    const nextPage = pageRef.current + 1;
+    const nextSlice = all.slice(0, nextPage * PAGE_SIZE);
+    if (nextSlice.length <= chats.length) return;
+    setIsLoadingMore(true);
+    setTimeout(() => {
+      pageRef.current = nextPage;
+      setChats(nextSlice);
+      setIsLoadingMore(false);
+    }, 300);
+  }, [chats.length]);
+
   const handleSelectChat = async (chatId: string) => {
     try {
       await chatManager.flushPendingSaves();
-      
+      const latest = chatManager.getLatestBranch(chatId);
+      const targetId = latest?.id ?? chatId;
       navigation.navigate('MainTabs', {
         screen: 'HomeTab',
-        params: { loadChatId: chatId }
+        params: { loadChatId: targetId },
       });
     } catch (error) {
-      showDialog('Error', 'Failed to load selected chat', [
-        <Button key="ok" onPress={hideDialog}>OK</Button>
-      ]);
+      showDialog('Error', 'Failed to load selected chat');
     }
   };
 
@@ -87,22 +96,22 @@ export default function ChatHistoryScreen() {
     return firstUserMessage?.content || chat.title || 'New conversation';
   };
 
+  const getLastResponderModel = (chat: Chat) => {
+    for (let index = chat.messages.length - 1; index >= 0; index -= 1) {
+      const message = chat.messages[index];
+      if (message.role === 'assistant' && message.modelName) {
+        return message.modelName;
+      }
+    }
+    return null;
+  };
+
   const handleDeleteChat = (chatId: string) => {
     showDialog(
       'Delete Chat',
       'Are you sure you want to delete this chat?',
-      [
-        <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
-        <Button
-          key="delete"
-          onPress={async () => {
-            hideDialog();
-            await chatManager.deleteChat(chatId);
-          }}
-        >
-          Delete
-        </Button>
-      ]
+      { label: 'Delete', onPress: async () => { hideDialog(); await chatManager.deleteChat(chatId); } },
+      { label: 'Cancel', onPress: hideDialog }
     );
   };
 
@@ -110,29 +119,20 @@ export default function ChatHistoryScreen() {
     showDialog(
       'Delete All Chats',
       'Are you sure you want to delete all chat histories? This cannot be undone.',
-      [
-        <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
-        <Button
-          key="delete"
-          onPress={async () => {
-            hideDialog();
-            await chatManager.deleteAllChats();
-          }}
-        >
-          Delete All
-        </Button>
-      ]
+      { label: 'Delete All', onPress: async () => { hideDialog(); await chatManager.deleteAllChats(); } },
+      { label: 'Cancel', onPress: hideDialog }
     );
   };
 
   const handleCreateNewChat = async () => {
     await chatManager.createNewChat();
-    navigation.navigate('MainTabs', {
-      screen: 'HomeTab',
-    });
+    navigation.navigate('MainTabs', { screen: 'HomeTab' });
   };
 
-  const renderItem = ({ item }: { item: Chat }) => (
+  const renderItem = ({ item }: { item: Chat }) => {
+    const lastResponderModel = getLastResponderModel(item);
+
+    return (
     <TouchableOpacity
       style={[
         styles.chatItem, 
@@ -152,6 +152,19 @@ export default function ChatHistoryScreen() {
           {new Date(item.timestamp).toLocaleDateString()} • 
           {item.messages.length} messages
         </Text>
+        {lastResponderModel ? (
+          <Text style={[styles.chatModel, { color: themeColors.secondaryText }]} numberOfLines={1}>
+            {lastResponderModel}
+          </Text>
+        ) : null}
+        {chatManager.getBranchCount(item.id) > 0 ? (
+          <View style={styles.branchBadge}>
+            <MaterialCommunityIcons name="source-branch" size={14} color={themeColors.secondaryText} />
+            <Text style={[styles.branchBadgeText, { color: themeColors.secondaryText }]}>
+              {chatManager.getBranchCount(item.id)} {chatManager.getBranchCount(item.id) === 1 ? 'branch' : 'branches'}
+            </Text>
+          </View>
+        ) : null}
       </View>
       
       <View style={styles.chatActions}>
@@ -164,7 +177,8 @@ export default function ChatHistoryScreen() {
         <MaterialCommunityIcons name="chevron-right" size={24} color={themeColors.secondaryText} />
       </View>
     </TouchableOpacity>
-  );
+    );
+  };
 
   const headerRightButtons = (
     <>
@@ -208,6 +222,15 @@ export default function ChatHistoryScreen() {
             renderItem={renderItem}
             keyExtractor={item => item.id}
             contentContainerStyle={styles.listContent}
+            onEndReached={loadMore}
+            onEndReachedThreshold={0.3}
+            ListFooterComponent={isLoadingMore ? (
+              <ActivityIndicator
+                size="small"
+                color={themeColors.headerBackground}
+                style={styles.footerLoader}
+              />
+            ) : null}
             ListEmptyComponent={() => (
               <View style={styles.emptyContainer}>
                 <Text style={[styles.emptyText, { color: themeColors.secondaryText }]}>
@@ -226,17 +249,16 @@ export default function ChatHistoryScreen() {
         )}
       </View>
 
-      <Portal>
-        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
-          <Dialog.Title>{dialogTitle}</Dialog.Title>
-          <Dialog.Content>
-            <Text>{dialogMessage}</Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            {dialogActions}
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <Dialog
+        visible={dialogVisible}
+        onDismiss={hideDialog}
+        title={dialogTitle}
+        description={dialogMessage}
+        primaryButtonText={dialogPrimaryText}
+        onPrimaryPress={dialogPrimaryPress}
+        secondaryButtonText={dialogSecondaryText}
+        onSecondaryPress={dialogSecondaryPress}
+      />
     </View>
   );
 }
@@ -277,6 +299,10 @@ const styles = StyleSheet.create({
   chatDate: {
     fontSize: 14,
   },
+  chatModel: {
+    fontSize: 12,
+    marginTop: 2,
+  },
   chatActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -315,5 +341,17 @@ const styles = StyleSheet.create({
   },
   newChatIcon: {
     marginRight: 8,
+  },
+  footerLoader: {
+    paddingVertical: 16,
+  },
+  branchBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  branchBadgeText: {
+    fontSize: 12,
+    marginLeft: 4,
   },
 }); 

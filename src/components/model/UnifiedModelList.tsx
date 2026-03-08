@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
-import { Text, ActivityIndicator, Portal, Dialog, Button } from 'react-native-paper';
+import { Text, ActivityIndicator, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
@@ -8,6 +8,7 @@ import { getThemeAwareColor } from '../../utils/ColorUtils';
 import { DownloadableModel } from './DownloadableModelItem';
 import VisionDownloadDialog from '../VisionDownloadDialog';
 import ModelFilesDialog from '../ModelFilesDialog';
+import Dialog from '../Dialog';
 import { FilterOptions } from '../ModelFilter';
 import { ModelWarningDialog } from './ModelWarningDialog';
 import { HuggingFaceSearchBar } from './HuggingFaceSearchBar';
@@ -58,6 +59,7 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
     logic.setSelectedFiles,
     logic.proceedWithDownload,
     logic.proceedWithMultipleDownloads,
+    logic.requestMLXDownload,
     logic.proceedWithCuratedDownload,
     logic.showDialog,
     logic.convertHfModelToDownloadable,
@@ -99,7 +101,9 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
         <HuggingFaceSearchBar
           searchQuery={logic.searchQuery}
           onSearchChange={logic.handleSearch}
+          onSearchSubmit={logic.handleSearchSubmit}
           onClearSearch={logic.clearSearch}
+          isLoading={logic.hfLoading}
         />
 
         {logic.showingHfResults ? (
@@ -130,14 +134,12 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
       </ScrollView>
 
       {logic.modelDetailsLoading && (
-        <Portal>
-          <Dialog visible={true}>
-            <Dialog.Content style={styles.loadingDialog}>
-              <ActivityIndicator size="large" />
-              <Text style={[styles.loadingDialogText, { color: themeColors.text }]}>Loading model details...</Text>
-            </Dialog.Content>
-          </Dialog>
-        </Portal>
+        <Dialog visible={true} onDismiss={undefined}>
+          <View style={styles.loadingDialog}>
+            <ActivityIndicator size="large" />
+            <Text style={[styles.loadingDialogText, { color: themeColors.text }]}>Loading model details...</Text>
+          </View>
+        </Dialog>
       )}
 
       <ModelFilesDialog
@@ -148,25 +150,43 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
         }}
         modelDetails={logic.selectedModel}
         onDownloadFile={handlers.handleDownloadFile}
+        onDownloadMLXModel={handlers.handleDownloadMLXModel}
       />
 
-      <Portal>
-        <Dialog visible={logic.dialogVisible} onDismiss={logic.hideDialog}>
-          <Dialog.Title>{logic.dialogTitle}</Dialog.Title>
-          <Dialog.Content>
-            <Text>{logic.dialogMessage}</Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={logic.hideDialog}>OK</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <Dialog
+        visible={logic.dialogVisible}
+        onDismiss={logic.hideDialog}
+        title={logic.dialogTitle}
+        description={logic.dialogMessage}
+        buttonText="OK"
+        onClose={logic.hideDialog}
+      />
 
       <ModelWarningDialog
         visible={logic.showWarningDialog}
         onAccept={handleWarningAccept}
         onCancel={handlers.handleWarningCancel}
       />
+
+      <Dialog
+        visible={logic.mlxDirDialogVisible}
+        onClose={logic.hideMLXDirDialog}
+        title="MLX Folder Name"
+        description="Enter a folder name for this MLX model package. All required MLX files will be downloaded into this folder."
+        primaryButtonText="Download"
+        onPrimaryPress={logic.confirmMLXDirDownload}
+        secondaryButtonText="Cancel"
+        onSecondaryPress={logic.hideMLXDirDialog}
+      >
+        <TextInput
+          mode="outlined"
+          label="Folder Name"
+          value={logic.mlxDirName}
+          onChangeText={logic.setMlxDirName}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+      </Dialog>
 
       {logic.selectedVisionModel && (
         <VisionDownloadDialog

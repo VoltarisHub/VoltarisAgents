@@ -32,7 +32,6 @@ expo-env.d.ts
 # Firebase & Google Services - CRITICAL SECURITY
 google-services.json
 GoogleService-Info.plist
-ios/LICENSE.plist
 firebase-debug.log
 firebase-debug.*.log
 .firebase/
@@ -51,11 +50,7 @@ firebaserc
 *.cer
 *.cert
 *.crt
-ios/build/
-ios/Pods/
-ios/DerivedData/
-ios/*.xcuserdatad/
-ios/*.xcarchive
+/ios/
 *.xcworkspace
 *.xcuserstate
 *.pbxuser
@@ -73,12 +68,7 @@ ios/*.xcarchive
 *.jks
 *.keystore
 !debug.keystore
-android/app/build/
-android/build/
-android/.gradle/
-android/local.properties
-android/app/release/
-android/app/src/main/assets/appcenter-config.json
+/android/
 
 # API Keys & Secrets - CRITICAL SECURITY
 **/secrets.json

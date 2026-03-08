@@ -4,10 +4,23 @@ export enum ModelType {
   LLM = 'llm',
 }
 
+export enum ModelFormat {
+  GGUF = 'gguf',
+  MLX = 'mlx',
+  UNKNOWN = 'unknown',
+}
+
 export interface ModelFile {
   rfilename: string;
   size?: number;
   url?: string;
+}
+
+export interface MLXFileGroup {
+  required: ModelFile[];
+  optional: ModelFile[];
+  totalSize: number;
+  isSharded: boolean;
 }
 
 export interface ModelCapabilities {
@@ -23,6 +36,9 @@ export interface EnhancedStoredModel {
   modified: string;
   isExternal?: boolean;
   modelType?: ModelType;
+  modelFormat?: ModelFormat;
+  isDirectory?: boolean;
+  fileCount?: number;
   capabilities?: string[];
   supportsMultimodal?: boolean;
   compatibleProjectionModels?: string[];

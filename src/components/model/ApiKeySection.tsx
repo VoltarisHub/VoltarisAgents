@@ -3,7 +3,8 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import { onlineModelService } from '../../services/OnlineModelService';
-import { Dialog, Portal, Button, List, Surface, HelperText } from 'react-native-paper';
+import { Surface } from 'react-native-paper';
+import Dialog from '../Dialog';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 interface ApiKeyItem {
@@ -20,6 +21,9 @@ interface ApiKeyItem {
   defaultModelName: string;
   baseUrl: string;
   defaultBaseUrl: string;
+  isClone: boolean;
+  baseProvider: string;
+  systemInstruction: string;
 }
 
 const openAIPresetUrls = [
@@ -31,77 +35,24 @@ const openAIPresetUrls = [
   { label: 'Together', url: 'https://api.together.xyz/v1' }
 ];
 
-const ApiKeySection: React.FC = () => {
+const BASE_PROVIDERS = [
+  { id: 'chatgpt', name: 'OpenAI API', placeholder: 'Enter your OpenAI API key', url: 'https://platform.openai.com/api-keys' },
+  { id: 'gemini', name: 'Gemini API', placeholder: 'Enter your Gemini API key', url: 'https://ai.google.dev/' },
+  { id: 'claude', name: 'Claude API', placeholder: 'Enter your Claude API key', url: 'https://www.anthropic.com' },
+];
+
+type ApiKeySectionProps = {
+  onInputFocus?: (target: number | null) => void;
+};
+
+const ApiKeySection: React.FC<ApiKeySectionProps> = ({ onInputFocus }) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const [isLoadingApiKeys, setIsLoadingApiKeys] = useState(false);
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
   const [dialogMessage, setDialogMessage] = useState('');
-  
-  const [apiKeyItems, setApiKeyItems] = useState<ApiKeyItem[]>([
-      { 
-        id: 'chatgpt', 
-        name: 'OpenAI API', 
-        key: '', 
-        placeholder: 'Enter your OpenAI API key', 
-        url: 'https://platform.openai.com/api-keys', 
-        expanded: false,
-        defaultKeyAvailable: onlineModelService.hasDefaultKey('chatgpt'),
-        usingDefaultKey: false,
-        useCustomKey: true,
-        modelName: '',
-        defaultModelName: '',
-        baseUrl: '',
-        defaultBaseUrl: onlineModelService.getDefaultBaseUrl('chatgpt')
-      },
-      { 
-        id: 'gemini', 
-        name: 'Gemini API', 
-        key: '', 
-        placeholder: 'Enter your Gemini API key', 
-        url: 'https://ai.google.dev/', 
-        expanded: false,
-        defaultKeyAvailable: onlineModelService.hasDefaultKey('gemini'),
-        usingDefaultKey: false,
-        useCustomKey: true,
-        modelName: '',
-        defaultModelName: '',
-        baseUrl: '',
-        defaultBaseUrl: onlineModelService.getDefaultBaseUrl('gemini')
-      },
-      { 
-        id: 'deepseek', 
-        name: 'DeepSeek API', 
-        key: '', 
-        placeholder: 'Enter your DeepSeek API key', 
-        url: 'https://platform.deepseek.com', 
-        expanded: false,
-        defaultKeyAvailable: onlineModelService.hasDefaultKey('deepseek'),
-        usingDefaultKey: false,
-        useCustomKey: true,
-        modelName: '',
-        defaultModelName: '',
-        baseUrl: '',
-        defaultBaseUrl: onlineModelService.getDefaultBaseUrl('deepseek')
-      },
-      { 
-        id: 'claude', 
-        name: 'Claude API', 
-        key: '', 
-        placeholder: 'Enter your Claude API key', 
-        url: 'https://www.anthropic.com',
-        expanded: false,
-        defaultKeyAvailable: onlineModelService.hasDefaultKey('claude'),
-        usingDefaultKey: false,
-        useCustomKey: true,
-        modelName: '',
-        defaultModelName: '',
-        baseUrl: '',
-        defaultBaseUrl: onlineModelService.getDefaultBaseUrl('claude')
-      },
-    ]);
-  
+  const [apiKeyItems, setApiKeyItems] = useState<ApiKeyItem[]>([]);
   const [saving, setSaving] = useState<string | null>(null);
   const [keyVisibility, setKeyVisibility] = useState<Record<string, boolean>>({});
 
@@ -114,6 +65,10 @@ const ApiKeySection: React.FC = () => {
   };
 
   const hideDialog = () => setDialogVisible(false);
+
+  const handleInputFocus = (event: any) => {
+    onInputFocus?.(event?.nativeEvent?.target ?? null);
+  };
 
   useEffect(() => {
     loadApiKeys();
@@ -167,56 +122,97 @@ const ApiKeySection: React.FC = () => {
   };
 
   const updateApiKey = (id: string, value: string) => {
-    setApiKeyItems(prevItems =>
-      prevItems.map(item => 
-        item.id === id ? { ...item, key: value } : item
-      )
-    );
+    setApiKeyItems(prev => prev.map(i => i.id === id ? { ...i, key: value } : i));
   };
 
   const updateModelName = (id: string, value: string) => {
-    setApiKeyItems(prevItems =>
-      prevItems.map(item => 
-        item.id === id ? { ...item, modelName: value } : item
-      )
-    );
+    setApiKeyItems(prev => prev.map(i => i.id === id ? { ...i, modelName: value } : i));
   };
 
   const updateBaseUrl = (id: string, value: string) => {
-    setApiKeyItems(prevItems =>
-      prevItems.map(item =>
-        item.id === id ? { ...item, baseUrl: value } : item
-      )
-    );
+    setApiKeyItems(prev => prev.map(i => i.id === id ? { ...i, baseUrl: value } : i));
+  };
+
+  const updateDisplayName = (id: string, value: string) => {
+    setApiKeyItems(prev => prev.map(i => i.id === id ? { ...i, name: value } : i));
+  };
+
+  const updateSystemInstruction = (id: string, value: string) => {
+    setApiKeyItems(prev => prev.map(i => i.id === id ? { ...i, systemInstruction: value } : i));
   };
 
   const loadApiKeys = async () => {
     setIsLoadingApiKeys(true);
     try {
-      const updatedItems = await Promise.all(
-        apiKeyItems.map(async (item) => {
-          const isUsingDefault = await onlineModelService.isUsingDefaultKey(item.id);
-          const customKey = await onlineModelService.getApiKey(item.id);
-          const modelName = await onlineModelService.getModelName(item.id);
-          const defaultModelName = onlineModelService.getDefaultModelName(item.id);
-          const customBaseUrl = await onlineModelService.getCustomBaseUrl(item.id);
-          const defaultBaseUrl = onlineModelService.getDefaultBaseUrl(item.id);
-          
-          return { 
-            ...item, 
+      const hydratedBase = await Promise.all(
+        BASE_PROVIDERS.map(async (bp) => {
+          const isUsingDefault = await onlineModelService.isUsingDefaultKey(bp.id);
+          const customKey = await onlineModelService.getApiKey(bp.id);
+          const modelName = await onlineModelService.getModelName(bp.id);
+          const defaultModelName = onlineModelService.getDefaultModelName(bp.id);
+          const customBaseUrl = await onlineModelService.getCustomBaseUrl(bp.id);
+          const defaultBaseUrl = onlineModelService.getDefaultBaseUrl(bp.id);
+          const systemInstruction = await onlineModelService.getSystemInstruction(bp.id);
+          return {
+            id: bp.id,
+            name: bp.name,
             key: customKey || '',
+            placeholder: bp.placeholder,
+            url: bp.url,
+            expanded: false,
+            defaultKeyAvailable: onlineModelService.hasDefaultKey(bp.id),
+            usingDefaultKey: isUsingDefault,
+            useCustomKey: !isUsingDefault,
             modelName: modelName || defaultModelName,
             defaultModelName,
             baseUrl: customBaseUrl || '',
             defaultBaseUrl,
-            useCustomKey: !isUsingDefault,
-            usingDefaultKey: isUsingDefault,
-            defaultKeyAvailable: onlineModelService.hasDefaultKey(item.id)
-          };
+            isClone: false,
+            baseProvider: bp.id,
+            systemInstruction: systemInstruction || '',
+          } as ApiKeyItem;
         })
       );
-      setApiKeyItems(updatedItems);
-    } catch (error) {
+
+      const clones = await onlineModelService.listClones();
+      const hydratedClones = await Promise.all(
+        clones.map(async (clone) => {
+          const isUsingDefault = await onlineModelService.isUsingDefaultKey(clone.id);
+          const customKey = await onlineModelService.getApiKey(clone.id);
+          const modelName = await onlineModelService.getModelName(clone.id);
+          const defaultModelName = onlineModelService.getDefaultModelName(clone.id);
+          const customBaseUrl = await onlineModelService.getCustomBaseUrl(clone.id);
+          const defaultBaseUrl = onlineModelService.getDefaultBaseUrl(clone.id);
+          const systemInstruction = await onlineModelService.getSystemInstruction(clone.id);
+          const baseMeta = BASE_PROVIDERS.find(b => b.id === clone.baseProvider);
+          return {
+            id: clone.id,
+            name: clone.displayName,
+            key: customKey || '',
+            placeholder: baseMeta?.placeholder || 'Enter your API key',
+            url: baseMeta?.url || '',
+            expanded: false,
+            defaultKeyAvailable: onlineModelService.hasDefaultKey(clone.id),
+            usingDefaultKey: isUsingDefault,
+            useCustomKey: !isUsingDefault,
+            modelName: modelName || defaultModelName,
+            defaultModelName,
+            baseUrl: customBaseUrl || '',
+            defaultBaseUrl,
+            isClone: true,
+            baseProvider: clone.baseProvider,
+            systemInstruction: systemInstruction || '',
+          } as ApiKeyItem;
+        })
+      );
+
+      const ordered: ApiKeyItem[] = [];
+      for (const base of hydratedBase) {
+        ordered.push(base);
+        ordered.push(...hydratedClones.filter(c => c.baseProvider === base.id));
+      }
+      setApiKeyItems(ordered);
+    } catch {
       showDialog('Error', 'Failed to load API keys');
     } finally {
       setIsLoadingApiKeys(false);
@@ -226,7 +222,7 @@ const ApiKeySection: React.FC = () => {
   const saveAll = async (id: string) => {
     setSaving(id);
     try {
-      const item = apiKeyItems.find(item => item.id === id);
+      const item = apiKeyItems.find(i => i.id === id);
       if (!item) return;
 
       const trimmedUrl = item.baseUrl.trim();
@@ -235,21 +231,20 @@ const ApiKeySection: React.FC = () => {
         return;
       }
 
+      if (item.isClone) {
+        const trimmedName = item.name.trim();
+        if (trimmedName) {
+          await onlineModelService.saveDisplayName(id, trimmedName);
+        }
+      }
+
       if (item.useCustomKey) {
         if (item.key.trim()) {
           await onlineModelService.saveApiKey(id, item.key.trim());
         } else {
           if (item.defaultKeyAvailable) {
             await onlineModelService.useDefaultKey(id, true);
-            setApiKeyItems(prevItems =>
-              prevItems.map(prevItem => 
-                prevItem.id === id ? {
-                  ...prevItem,
-                  usingDefaultKey: true,
-                  useCustomKey: false
-                } : prevItem
-              )
-            );
+            setApiKeyItems(prev => prev.map(i => i.id === id ? { ...i, usingDefaultKey: true, useCustomKey: false } : i));
           } else {
             await onlineModelService.clearApiKey(id);
           }
@@ -260,39 +255,93 @@ const ApiKeySection: React.FC = () => {
         await onlineModelService.saveModelName(id, item.modelName.trim());
       } else {
         await onlineModelService.clearModelName(id);
-        setApiKeyItems(prevItems =>
-          prevItems.map(prevItem => 
-            prevItem.id === id ? {
-              ...prevItem,
-              modelName: prevItem.defaultModelName
-            } : prevItem
-          )
-        );
+        setApiKeyItems(prev => prev.map(i => i.id === id ? { ...i, modelName: i.defaultModelName } : i));
       }
 
       if (trimmedUrl) {
         await onlineModelService.saveBaseUrl(id, trimmedUrl);
-        setApiKeyItems(prevItems =>
-          prevItems.map(prevItem =>
-            prevItem.id === id ? { ...prevItem, baseUrl: trimmedUrl } : prevItem
-          )
-        );
+        setApiKeyItems(prev => prev.map(i => i.id === id ? { ...i, baseUrl: trimmedUrl } : i));
       } else {
         await onlineModelService.clearBaseUrl(id);
-        setApiKeyItems(prevItems =>
-          prevItems.map(prevItem =>
-            prevItem.id === id ? { ...prevItem, baseUrl: '' } : prevItem
-          )
-        );
+        setApiKeyItems(prev => prev.map(i => i.id === id ? { ...i, baseUrl: '' } : i));
+      }
+
+      const trimmedInstruction = item.systemInstruction.trim();
+      if (trimmedInstruction) {
+        await onlineModelService.saveSystemInstruction(id, trimmedInstruction);
+        setApiKeyItems(prev => prev.map(i => i.id === id ? { ...i, systemInstruction: trimmedInstruction } : i));
+      } else {
+        await onlineModelService.clearSystemInstruction(id);
+        setApiKeyItems(prev => prev.map(i => i.id === id ? { ...i, systemInstruction: '' } : i));
       }
 
       showDialog('Success', `${item.name} settings saved`);
-    } catch (error) {
+    } catch {
       const item = apiKeyItems.find(i => i.id === id);
       showDialog('Error', `Failed to save ${item?.name || id} settings`);
     } finally {
       setSaving(null);
     }
+  };
+
+  const handleCloneApi = async (baseId: string) => {
+    try {
+      const base = apiKeyItems.find(i => i.id === baseId);
+      if (!base) return;
+      const count = apiKeyItems.filter(i => i.baseProvider === baseId && i.isClone).length;
+      const displayName = `${base.name} (${count + 2})`;
+      const cloneId = await onlineModelService.createClone(baseId, displayName);
+      const newClone: ApiKeyItem = {
+        id: cloneId,
+        name: displayName,
+        key: '',
+        placeholder: base.placeholder,
+        url: base.url,
+        expanded: true,
+        defaultKeyAvailable: onlineModelService.hasDefaultKey(cloneId),
+        usingDefaultKey: false,
+        useCustomKey: true,
+        modelName: base.defaultModelName,
+        defaultModelName: base.defaultModelName,
+        baseUrl: '',
+        defaultBaseUrl: base.defaultBaseUrl,
+        isClone: true,
+        baseProvider: baseId,
+        systemInstruction: '',
+      };
+      setApiKeyItems(prev => {
+        const lastIdx = [...prev].reduce((acc, item, idx) => {
+          if (item.baseProvider === baseId || item.id === baseId) return idx;
+          return acc;
+        }, -1);
+        const next = [...prev];
+        next.splice(lastIdx + 1, 0, newClone);
+        return next;
+      });
+    } catch {
+      showDialog('Error', 'Failed to create clone');
+    }
+  };
+
+  const handleDeleteClone = async (cloneId: string) => {
+    try {
+      await onlineModelService.deleteClone(cloneId);
+      setApiKeyItems(prev => prev.filter(i => i.id !== cloneId));
+    } catch {
+      showDialog('Error', 'Failed to delete configuration');
+    }
+  };
+
+  const getDescriptionText = (item: ApiKeyItem): string => {
+    if (item.useCustomKey) return item.key ? 'Custom key configured' : 'Enter your API key';
+    return item.usingDefaultKey ? 'Using built-in key' : 'No API key available';
+  };
+
+  const getDescriptionColor = (item: ApiKeyItem): string => {
+    if ((item.useCustomKey && item.key) || item.usingDefaultKey) {
+      return item.useCustomKey ? themeColors.primary : 'orange';
+    }
+    return 'red';
   };
 
   if (isLoadingApiKeys) {
@@ -305,190 +354,212 @@ const ApiKeySection: React.FC = () => {
   }
 
   return (
-    <Surface style={[styles.container, { backgroundColor: themeColors.background }]}>
-
+    <Surface style={[styles.container, { backgroundColor: themeColors.background }]}> 
+      <View style={styles.containerContent}>
       {apiKeyItems.map((item) => (
-        <List.Accordion
-          key={item.id}
-          title={item.name}
-          description={
-            item.useCustomKey 
-              ? (item.key ? "Custom key configured" : "Enter your API key") 
-              : (item.usingDefaultKey ? "Using built-in key" : "No API key available")
-          }
-          descriptionStyle={{ 
-            color: (item.useCustomKey && item.key) || item.usingDefaultKey 
-              ? (item.useCustomKey ? themeColors.primary : 'orange') 
-              : 'red' 
-          }}
-          left={props => 
-            <List.Icon
-              {...props}
-              icon={getModelIcon(item.id)}
-              color={themeColors.primary}
-            />
-          }
-          expanded={item.expanded}
-          onPress={() => toggleExpand(item.id)}
-          style={[styles.accordion, { backgroundColor: 'rgba(150, 150, 150, 0.08)' }]}
-          titleStyle={{ color: themeColors.text }}
-        >
-          <Surface style={[styles.accordionContent, { backgroundColor: themeColors.background }]}>
-            {item.defaultKeyAvailable && (
-              <View style={styles.toggleContainer}>
-                <Text style={[styles.toggleLabel, { color: themeColors.text }]}>
-                  Use your own API key
+        <View key={item.id} style={styles.accordionWrapper}>
+          <TouchableOpacity
+            style={[styles.accordionHeader, { backgroundColor: 'rgba(150, 150, 150, 0.08)' }]}
+            onPress={() => toggleExpand(item.id)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.accordionHeaderLeft}>
+              <MaterialCommunityIcons
+                name={getModelIcon(item.baseProvider)}
+                size={24}
+                color={item.isClone ? themeColors.secondaryText : themeColors.primary}
+                style={styles.accordionIcon}
+              />
+              <View style={styles.accordionTitleBlock}>
+                <Text style={[styles.accordionTitle, { color: themeColors.text }]} numberOfLines={1}>
+                  {item.name}
                 </Text>
-                <Switch
-                  value={item.useCustomKey}
-                  onValueChange={() => toggleUseCustomKey(item.id)}
-                  trackColor={{ false: "#767577", true: themeColors.primary }}
-                  disabled={saving === item.id}
+                <Text style={[styles.accordionDesc, { color: getDescriptionColor(item) }]} numberOfLines={1}>
+                  {getDescriptionText(item)}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.accordionHeaderRight}>
+              {item.isClone ? (
+                <TouchableOpacity
+                  onPress={() => handleDeleteClone(item.id)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.headerActionBtn}
+                >
+                  <MaterialCommunityIcons name="trash-can-outline" size={18} color="#d32f2f" />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  onPress={() => handleCloneApi(item.id)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.headerActionBtn}
+                >
+                  <MaterialCommunityIcons name="plus-circle-outline" size={18} color={themeColors.primary} />
+                </TouchableOpacity>
+              )}
+              <MaterialCommunityIcons
+                name={item.expanded ? 'chevron-up' : 'chevron-down'}
+                size={22}
+                color={themeColors.secondaryText}
+              />
+            </View>
+          </TouchableOpacity>
+
+          {item.expanded && (
+            <Surface style={[styles.accordionContent, { backgroundColor: themeColors.background }]}>
+              {item.isClone && (
+                <View style={styles.inputContainer}>
+                  <Text style={[styles.inputLabel, { color: themeColors.text }]}>Display Name</Text>
+                  <TextInput
+                    style={[styles.input, { color: themeColors.text, backgroundColor: themeColors.background, borderColor: themeColors.borderColor }]}
+                    placeholder="e.g., Groq, LM Studio, OpenRouter"
+                    placeholderTextColor={themeColors.secondaryText}
+                    value={item.name}
+                    onChangeText={(text) => updateDisplayName(item.id, text)}
+                    onFocus={handleInputFocus}
+                    autoCapitalize="none"
+                  />
+                </View>
+              )}
+
+              {item.defaultKeyAvailable && !item.isClone && (
+                <View style={styles.toggleContainer}>
+                  <Text style={[styles.toggleLabel, { color: themeColors.text }]}>Use your own API key</Text>
+                  <Switch
+                    value={item.useCustomKey}
+                    onValueChange={() => toggleUseCustomKey(item.id)}
+                    trackColor={{ false: '#767577', true: themeColors.primary }}
+                    disabled={saving === item.id}
+                  />
+                </View>
+              )}
+
+              {(item.useCustomKey || !item.defaultKeyAvailable) && (
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={[styles.input, { color: themeColors.text, backgroundColor: themeColors.background, borderColor: themeColors.borderColor }]}
+                    placeholder={item.placeholder}
+                    placeholderTextColor={themeColors.secondaryText}
+                    value={item.key}
+                    onChangeText={(text) => updateApiKey(item.id, text)}
+                    onFocus={handleInputFocus}
+                    autoCapitalize="none"
+                    secureTextEntry={!keyVisibility[item.id]}
+                  />
+                  <TouchableOpacity style={styles.visibilityButton} onPress={() => toggleKeyVisibility(item.id)}>
+                    <MaterialCommunityIcons
+                      name={keyVisibility[item.id] ? 'eye-off' : 'eye'}
+                      size={24}
+                      color={themeColors.secondaryText}
+                    />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <View style={styles.inputContainer}>
+                <Text style={[styles.inputLabel, { color: themeColors.text }]}>Model Name</Text>
+                <TextInput
+                  style={[styles.input, { color: themeColors.text, backgroundColor: themeColors.background, borderColor: themeColors.borderColor }]}
+                  placeholder={`Default: ${item.defaultModelName}`}
+                  placeholderTextColor={themeColors.secondaryText}
+                  value={item.modelName}
+                  onChangeText={(text) => updateModelName(item.id, text)}
+                  onFocus={handleInputFocus}
+                  autoCapitalize="none"
                 />
               </View>
-            )}
-            
-            {(item.useCustomKey || !item.defaultKeyAvailable) && (
+
               <View style={styles.inputContainer}>
+                <Text style={[styles.inputLabel, { color: themeColors.text }]}>Base URL</Text>
+                <TextInput
+                  style={[styles.input, { color: themeColors.text, backgroundColor: themeColors.background, borderColor: themeColors.borderColor, paddingRight: 12 }]}
+                  placeholder={`Default: ${item.defaultBaseUrl || 'None'}`}
+                  placeholderTextColor={themeColors.secondaryText}
+                  value={item.baseUrl}
+                  onChangeText={(text) => updateBaseUrl(item.id, text)}
+                  onFocus={handleInputFocus}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={[styles.inputLabel, { color: themeColors.text }]}>System Instruction</Text>
                 <TextInput
                   style={[
                     styles.input,
-                    { 
+                    styles.systemInstructionInput,
+                    {
                       color: themeColors.text,
                       backgroundColor: themeColors.background,
-                      borderColor: themeColors.borderColor
+                      borderColor: themeColors.borderColor,
                     }
                   ]}
-                  placeholder={item.placeholder}
+                  placeholder="Optional. Falls back to Settings → Model Settings → System Prompt"
                   placeholderTextColor={themeColors.secondaryText}
-                  value={item.key}
-                  onChangeText={(text) => updateApiKey(item.id, text)}
-                  autoCapitalize="none"
-                  secureTextEntry={!keyVisibility[item.id]}
+                  value={item.systemInstruction}
+                  onChangeText={(text) => updateSystemInstruction(item.id, text)}
+                  onFocus={handleInputFocus}
+                  multiline
+                  textAlignVertical="top"
                 />
-                <TouchableOpacity 
-                  style={styles.visibilityButton}
-                  onPress={() => toggleKeyVisibility(item.id)}
+              </View>
+
+              {(item.id === 'chatgpt' || item.baseProvider === 'chatgpt') && (
+                <View style={styles.presetContainer}>
+                  <Text style={[styles.presetLabel, { color: themeColors.text }]}>Popular endpoints</Text>
+                  <View style={styles.presetChips}>
+                    {openAIPresetUrls.map(preset => (
+                      <TouchableOpacity
+                        key={preset.label}
+                        style={[styles.presetChip, { borderColor: themeColors.borderColor }]}
+                        onPress={() => updateBaseUrl(item.id, preset.url)}
+                      >
+                        <Text style={[styles.presetChipText, { color: themeColors.primary }]}>{preset.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              <View style={styles.actionRow}>
+                <TouchableOpacity
+                  style={[styles.saveButton, { backgroundColor: themeColors.primary }]}
+                  onPress={() => saveAll(item.id)}
+                  disabled={saving === item.id}
                 >
-                  <MaterialCommunityIcons
-                    name={keyVisibility[item.id] ? "eye-off" : "eye"}
-                    size={24}
-                    color={themeColors.secondaryText}
-                  />
+                  {saving === item.id ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.saveButtonText}>Save</Text>
+                  )}
                 </TouchableOpacity>
               </View>
-            )}
-            
-            <View style={styles.inputContainer}>
-              <Text style={[styles.inputLabel, { color: themeColors.text }]}>
-                Model Name
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  { 
-                    color: themeColors.text,
-                    backgroundColor: themeColors.background,
-                    borderColor: themeColors.borderColor
-                  }
-                ]}
-                placeholder={`Default: ${item.defaultModelName}`}
-                placeholderTextColor={themeColors.secondaryText}
-                value={item.modelName}
-                onChangeText={(text) => updateModelName(item.id, text)}
-                autoCapitalize="none"
-              />
-            </View>
-
-            <View style={styles.inputContainer}>
-              <Text style={[styles.inputLabel, { color: themeColors.text }]}>Base URL</Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  { 
-                    color: themeColors.text,
-                    backgroundColor: themeColors.background,
-                    borderColor: themeColors.borderColor,
-                    paddingRight: 12
-                  }
-                ]}
-                placeholder={`Default: ${item.defaultBaseUrl || 'None'}`}
-                placeholderTextColor={themeColors.secondaryText}
-                value={item.baseUrl}
-                onChangeText={(text) => updateBaseUrl(item.id, text)}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="url"
-              />
-            </View>
-
-            {item.id === 'chatgpt' && (
-              <View style={styles.presetContainer}>
-                <Text style={[styles.presetLabel, { color: themeColors.text }]}>Popular endpoints</Text>
-                <View style={styles.presetChips}>
-                  {openAIPresetUrls.map(preset => (
-                    <TouchableOpacity
-                      key={preset.label}
-                      style={[styles.presetChip, { borderColor: themeColors.borderColor }]}
-                      onPress={() => updateBaseUrl(item.id, preset.url)}
-                    >
-                      <Text style={[styles.presetChipText, { color: themeColors.primary }]}>
-                        {preset.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
-            
-            <View style={styles.actionRow}>
-              <TouchableOpacity
-                style={[
-                  styles.saveButton,
-                  { backgroundColor: themeColors.primary }
-                ]}
-                onPress={() => saveAll(item.id)}
-                disabled={saving === item.id}
-              >
-                {saving === item.id ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.saveButtonText}>Save</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-         
-          </Surface>
-        </List.Accordion>
+            </Surface>
+          )}
+        </View>
       ))}
+      </View>
 
-      <Portal>
-        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
-          <Dialog.Title>{dialogTitle}</Dialog.Title>
-          <Dialog.Content>
-            <Text style={{ color: themeColors.text }}>{dialogMessage}</Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={hideDialog}>OK</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <Dialog
+        visible={dialogVisible}
+        onDismiss={hideDialog}
+        title={dialogTitle}
+        description={dialogMessage}
+        buttonText="OK"
+        onClose={hideDialog}
+      />
     </Surface>
   );
 };
 
 const getModelIcon = (id: string): string => {
   switch (id) {
-    case 'gemini':
-      return 'cube';
-    case 'chatgpt':
-      return 'cube';
-    case 'claude':
-      return 'cube';
-    case 'deepseek':
-      return 'cube';
-    default:
-      return 'key';
+    case 'gemini': return 'cube';
+    case 'chatgpt': return 'cube';
+    case 'claude': return 'cube';
+    default: return 'key';
   }
 };
 
@@ -497,34 +568,57 @@ const styles = StyleSheet.create({
     marginBottom: 25,
     borderRadius: 16,
     elevation: 2,
+  },
+  containerContent: {
+    borderRadius: 16,
     overflow: 'hidden',
   },
-  headerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  subtitle: {
-    fontSize: 14,
-    marginBottom: 16,
-    paddingHorizontal: 16,
-  },
-  accordion: {
+  accordionWrapper: {
+    marginHorizontal: 8,
     marginVertical: 4,
     borderRadius: 8,
-    marginHorizontal: 8,
     overflow: 'hidden',
+  },
+  accordionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  accordionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 0,
+  },
+  accordionIcon: {
+    marginRight: 12,
+  },
+  accordionTitleBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
+  accordionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  accordionDesc: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  accordionHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginLeft: 8,
+  },
+  headerActionBtn: {
+    padding: 4,
   },
   accordionContent: {
     padding: 16,
-    marginHorizontal: 8,
-    marginBottom: 8,
     borderRadius: 8,
   },
   toggleContainer: {
@@ -549,6 +643,12 @@ const styles = StyleSheet.create({
     paddingRight: 48,
     fontSize: 16,
   },
+  systemInstructionInput: {
+    minHeight: 88,
+    height: 'auto',
+    paddingTop: 12,
+    paddingRight: 12,
+  },
   inputLabel: {
     fontSize: 16,
     fontWeight: '500',
@@ -562,10 +662,10 @@ const styles = StyleSheet.create({
   },
   actionRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
+    marginTop: 8,
     marginBottom: 8,
-    flexWrap: 'wrap',
     gap: 8,
   },
   linkButton: {
@@ -586,8 +686,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minWidth: 100,
     height: 40,
-    flex: 1,
-    maxWidth: 150,
   },
   saveButtonText: {
     color: '#fff',

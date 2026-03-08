@@ -10,6 +10,7 @@ export type ChatMessage = {
   id: string;
   content: string;
   role: 'user' | 'assistant' | 'system';
+  modelName?: string;
   thinking?: string;
   stats?: {
     duration: number;
@@ -24,7 +25,13 @@ export type Chat = {
   title: string;
   messages: ChatMessage[];
   timestamp: number;
+  createdAt: number;
   modelPath?: string;
+  parentChatId?: string;
+  branchFromMsgId?: string;
+  branchPointIndex?: number;
+  forkedFromChatId?: string;
+  forkPointIndex?: number;
 };
 
 class ChatManager {
@@ -92,6 +99,149 @@ class ChatManager {
     return nonEmptyChats.sort((a, b) => b.timestamp - a.timestamp);
   }
 
+  getRootChats(): Chat[] {
+    return this.cache
+      .filter(chat => chat.messages.length > 0 && !chat.parentChatId)
+      .sort((a, b) => {
+        const aLatest = this.getLatestBranchTimestamp(a.id);
+        const bLatest = this.getLatestBranchTimestamp(b.id);
+        return bLatest - aLatest;
+      });
+  }
+
+  private getLatestBranchTimestamp(rootId: string): number {
+    const root = this.getChatById(rootId);
+    let latest = root?.timestamp ?? 0;
+    for (const c of this.cache) {
+      if (c.parentChatId === rootId && c.timestamp > latest) {
+        latest = c.timestamp;
+      }
+    }
+    return latest;
+  }
+
+  getLatestBranch(rootId: string): Chat | null {
+    const root = this.getChatById(rootId);
+    if (!root) return null;
+    const branches = this.cache.filter(c => c.parentChatId === rootId);
+    if (branches.length === 0) return root;
+    branches.sort((a, b) => b.timestamp - a.timestamp);
+    return branches[0].timestamp >= root.timestamp ? branches[0] : root;
+  }
+
+  getBranchCount(rootId: string): number {
+    return this.cache.filter(c => c.parentChatId === rootId).length;
+  }
+
+  getForkInfo(
+    chatId: string,
+  ): Map<number, { total: number; current: number; forks: string[] }> {
+    const result = new Map<
+      number,
+      { total: number; current: number; forks: string[] }
+    >();
+    const chat = this.getChatById(chatId);
+    if (!chat) return result;
+
+    const originId = chat.forkedFromChatId ?? chatId;
+    const forkIdx = chat.forkPointIndex;
+
+    const allForks = this.cache.filter(
+      c => c.forkedFromChatId === originId,
+    );
+
+    const pointMap = new Map<number, string[]>();
+    for (const f of allForks) {
+      if (f.forkPointIndex === undefined) continue;
+      if (!pointMap.has(f.forkPointIndex)) {
+        pointMap.set(f.forkPointIndex, []);
+      }
+      pointMap.get(f.forkPointIndex)!.push(f.id);
+    }
+
+    for (const [idx, forkIds] of pointMap) {
+      const siblings = [originId, ...forkIds.sort((a, b) => {
+        const ca = this.getChatById(a);
+        const cb = this.getChatById(b);
+        return (ca?.createdAt ?? 0) - (cb?.createdAt ?? 0);
+      })];
+      if (siblings.length < 2) continue;
+
+      const currentIdx = siblings.indexOf(chatId);
+      if (currentIdx === -1 && chatId !== originId) continue;
+
+      result.set(idx, {
+        total: siblings.length,
+        current: currentIdx === -1 ? 0 : currentIdx,
+        forks: siblings,
+      });
+    }
+
+    if (
+      chat.forkedFromChatId &&
+      forkIdx !== undefined &&
+      !result.has(forkIdx)
+    ) {
+      const siblingsForThis = [originId];
+      const related = this.cache.filter(
+        c => c.forkedFromChatId === originId && c.forkPointIndex === forkIdx,
+      );
+      related.sort((a, b) => a.createdAt - b.createdAt);
+      for (const r of related) {
+        siblingsForThis.push(r.id);
+      }
+      if (siblingsForThis.length > 1) {
+        const ci = siblingsForThis.indexOf(chatId);
+        result.set(forkIdx, {
+          total: siblingsForThis.length,
+          current: ci === -1 ? 0 : ci,
+          forks: siblingsForThis,
+        });
+      }
+    }
+
+    return result;
+  }
+
+  async forkChat(fromMsgIndex: number): Promise<Chat | null> {
+    try {
+      await this.ensureInitialized();
+      if (!this.currentChatId) return null;
+
+      const chat = this.getChatById(this.currentChatId);
+      if (!chat) return null;
+      if (fromMsgIndex < 0 || fromMsgIndex >= chat.messages.length) return null;
+
+      const originId = chat.forkedFromChatId ?? this.currentChatId!;
+
+      const copiedMsgs = chat.messages.slice(0, fromMsgIndex + 1).map(m => ({
+        ...m,
+        id: generateRandomId(),
+      }));
+
+      const now = Date.now();
+      const fork: Chat = {
+        id: generateRandomId(),
+        title: chat.title,
+        messages: copiedMsgs,
+        timestamp: now,
+        createdAt: now,
+        modelPath: chat.modelPath,
+        forkedFromChatId: originId,
+        forkPointIndex: fromMsgIndex,
+      };
+
+      this.cache.unshift(fork);
+      this.currentChatId = fork.id;
+      await this.persistCurrentChat();
+      await this.saveChat(fork);
+      this.notifyListeners();
+      return fork;
+    } catch (error) {
+      return null;
+    }
+  }
+
   getCurrentChat(): Chat | null {
     if (!this.currentChatId) return null;
     return this.getChatById(this.currentChatId);
@@ -128,11 +278,13 @@ class ChatManager {
         }
       }
 
+      const now = Date.now();
       const newChat: Chat = {
         id: generateRandomId(),
         title: 'New Chat',
         messages: initialMessages,
-        timestamp: Date.now(),
+        timestamp: now,
+        createdAt: now,
       };
 
       this.cache.unshift(newChat);
@@ -192,10 +344,14 @@ class ChatManager {
     try {
       await this.ensureInitialized();
 
-      if (!this.currentChatId) return false;
+      if (!this.currentChatId) {
+        return false;
+      }
 
       const chat = this.getChatById(this.currentChatId);
-      if (!chat) return false;
+      if (!chat) {
+        return false;
+      }
 
       const newMessage: ChatMessage = {
         ...message,
@@ -217,6 +373,7 @@ class ChatManager {
       this.notifyListeners();
       return true;
     } catch (error) {
+      console.log('chatmanager_add_error', error instanceof Error ? error.message : 'unknown');
       return false;
     }
   }
@@ -306,6 +463,125 @@ class ChatManager {
     } catch (error) {
       return false;
     }
+  }
+
+  async createBranch(messageId: string, newContent: string): Promise<Chat | null> {
+    try {
+      await this.ensureInitialized();
+      if (!this.currentChatId) return null;
+
+      const chat = this.getChatById(this.currentChatId);
+      if (!chat) return null;
+
+      const msgIndex = chat.messages.findIndex(m => m.id === messageId);
+      if (msgIndex === -1) return null;
+      if (chat.messages[msgIndex].role !== 'user') return null;
+
+      const rootId = chat.parentChatId ?? chat.id;
+
+      const prefix = chat.messages.slice(0, msgIndex).map(m => ({
+        ...m,
+        id: generateRandomId(),
+      }));
+
+      const editedMsg: ChatMessage = {
+        id: generateRandomId(),
+        content: newContent,
+        role: 'user',
+      };
+
+      const now = Date.now();
+      const branch: Chat = {
+        id: generateRandomId(),
+        title: chat.title,
+        messages: [...prefix, editedMsg],
+        timestamp: now,
+        createdAt: now,
+        modelPath: chat.modelPath,
+        parentChatId: rootId,
+        branchFromMsgId: messageId,
+        branchPointIndex: msgIndex,
+      };
+
+      this.cache.unshift(branch);
+      this.currentChatId = branch.id;
+      await this.persistCurrentChat();
+      await this.saveChat(branch);
+      this.notifyListeners();
+      return branch;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  getAllBranchInfo(
+    chatId: string,
+  ): Map<number, { total: number; current: number; branches: string[] }> {
+    const result = new Map<
+      number,
+      { total: number; current: number; branches: string[] }
+    >();
+    const chat = this.getChatById(chatId);
+    if (!chat) return result;
+
+    if (
+      chat.parentChatId !== undefined &&
+      chat.branchPointIndex !== undefined &&
+      chat.branchFromMsgId
+    ) {
+      const parent = this.getChatById(chat.parentChatId);
+      if (parent) {
+        const siblings = [parent.id];
+        const branches = this.cache
+          .filter(
+            c =>
+              c.parentChatId === parent.id &&
+              c.branchPointIndex === chat.branchPointIndex,
+          )
+          .sort((a, b) => a.createdAt - b.createdAt);
+        for (const b of branches) {
+          siblings.push(b.id);
+        }
+        if (siblings.length > 1) {
+          const currentIdx = siblings.indexOf(chatId);
+          result.set(chat.branchPointIndex, {
+            total: siblings.length,
+            current: currentIdx,
+            branches: siblings,
+          });
+        }
+      }
+    }
+
+    const childBranches = this.cache.filter(c => c.parentChatId === chatId);
+    const branchPoints = new Map<number, Chat[]>();
+    for (const child of childBranches) {
+      if (child.branchPointIndex === undefined) continue;
+      const key = child.branchPointIndex;
+      if (!branchPoints.has(key)) {
+        branchPoints.set(key, []);
+      }
+      branchPoints.get(key)!.push(child);
+    }
+
+    for (const [pointIdx, branches] of branchPoints) {
+      if (result.has(pointIdx)) continue;
+
+      const siblings = [chatId];
+      branches.sort((a, b) => a.createdAt - b.createdAt);
+      for (const b of branches) {
+        siblings.push(b.id);
+      }
+      if (siblings.length > 1) {
+        result.set(pointIdx, {
+          total: siblings.length,
+          current: 0,
+          branches: siblings,
+        });
+      }
+    }
+
+    return result;
   }
 
   async updateChatMessages(chatId: string, messages: ChatMessage[]): Promise<boolean> {
@@ -429,6 +705,9 @@ class ChatManager {
       const id = typeof entry.id === 'string' && entry.id.length > 0 ? entry.id : generateRandomId();
       const role: ChatMessage['role'] = entry.role === 'assistant' || entry.role === 'system' ? entry.role : 'user';
       const content = typeof entry.content === 'string' ? entry.content : String(entry.content ?? '');
+      const modelName = typeof entry.modelName === 'string' && entry.modelName.trim().length > 0
+        ? entry.modelName.trim()
+        : undefined;
       const thinking = typeof entry.thinking === 'string' ? entry.thinking : undefined;
 
       let stats: ChatMessage['stats'] | undefined;
@@ -448,6 +727,7 @@ class ChatManager {
         id,
         role,
         content,
+        modelName,
         thinking,
         stats,
       };
@@ -471,6 +751,7 @@ class ChatManager {
       thinking?: string | null;
       stats?: ChatMessage['stats'] | null;
       role?: ChatMessage['role'];
+      modelName?: string | null;
     }
   ): Promise<boolean> {
     try {
@@ -492,6 +773,10 @@ class ChatManager {
 
       if (updates.role && (updates.role === 'user' || updates.role === 'assistant' || updates.role === 'system')) {
         message.role = updates.role;
+      }
+
+      if (updates.modelName !== undefined) {
+        message.modelName = updates.modelName === null ? undefined : updates.modelName;
       }
 
       if (updates.stats !== undefined) {
@@ -599,14 +884,14 @@ class ChatManager {
   async generateChatTitle(userMessage: string): Promise<string> {
     try {
       if (this.currentProvider === 'local') {
-        const { llamaManager } = await import('./LlamaManager');
-        if (llamaManager.isInitialized()) {
+        const { engineService } = await import('../services/inference-engine-service');
+        if (engineService.mgr().ready()) {
+          const { llamaManager } = await import('./LlamaManager');
           return await llamaManager.generateChatTitle(userMessage);
         }
       } else if (
         this.currentProvider === 'gemini' ||
         this.currentProvider === 'chatgpt' ||
-        this.currentProvider === 'deepseek' ||
         this.currentProvider === 'claude'
       ) {
         const { onlineModelService } = await import('../services/OnlineModelService');
@@ -616,13 +901,14 @@ class ChatManager {
         }
       }
 
-      const { llamaManager } = await import('./LlamaManager');
-      if (llamaManager.isInitialized()) {
+      const { engineService } = await import('../services/inference-engine-service');
+      if (engineService.mgr().ready()) {
+        const { llamaManager } = await import('./LlamaManager');
         return await llamaManager.generateChatTitle(userMessage);
       }
 
       const { onlineModelService } = await import('../services/OnlineModelService');
-      const providers: ('gemini' | 'chatgpt' | 'deepseek' | 'claude')[] = ['gemini', 'chatgpt', 'deepseek', 'claude'];
+      const providers: ('gemini' | 'chatgpt' | 'claude')[] = ['gemini', 'chatgpt', 'claude'];
       for (const provider of providers) {
         const hasApiKey = await onlineModelService.hasApiKey(provider);
         if (hasApiKey) {

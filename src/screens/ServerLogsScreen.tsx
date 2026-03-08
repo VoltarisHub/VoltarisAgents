@@ -3,7 +3,7 @@ import { View, StyleSheet, ScrollView, Text, TouchableOpacity, RefreshControl } 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Dialog, Portal, Button } from 'react-native-paper';
+import Dialog from '../components/Dialog';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { RootStackParamList } from '../types/navigation';
@@ -229,20 +229,16 @@ export default function ServerLogsScreen() {
         <Text style={styles.autoScrollText}>Auto-scroll: {autoScroll ? 'ON' : 'OFF'}</Text>
       </View>
 
-      <Portal>
-        <Dialog visible={clearDialogVisible} onDismiss={() => setClearDialogVisible(false)}>
-          <Dialog.Title style={{ color: themeColors.text }}>Clear Logs</Dialog.Title>
-          <Dialog.Content>
-            <Text style={{ color: themeColors.text }}>
-              Are you sure you want to clear all server logs?
-            </Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setClearDialogVisible(false)}>Cancel</Button>
-            <Button onPress={handleClearLogs} textColor="#FF5C5C">Clear</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <Dialog
+        visible={clearDialogVisible}
+        onDismiss={() => setClearDialogVisible(false)}
+        title="Clear Logs"
+        description="Are you sure you want to clear all server logs?"
+        primaryButtonText="Clear"
+        onPrimaryPress={handleClearLogs}
+        secondaryButtonText="Cancel"
+        onSecondaryPress={() => setClearDialogVisible(false)}
+      />
     </View>
   );
 }

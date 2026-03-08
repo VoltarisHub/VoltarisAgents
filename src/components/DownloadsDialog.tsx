@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,10 +6,7 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
-  AppState,
-  AppStateStatus,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
@@ -40,7 +37,6 @@ const formatBytes = (bytes: number) => {
 const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: DownloadsDialogProps) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
-  const appState = useRef(AppState.currentState);
 
   const checkCompletedDownloads = async () => {
     try {
@@ -75,27 +71,6 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
     }
   }, [visible]);
 
-  useEffect(() => {
-    let subscription: { remove: () => void } | undefined;
-    
-    try {
-      subscription = AppState.addEventListener('change', async (nextAppState: AppStateStatus) => {
-        if (appState.current === 'active' && nextAppState !== 'active') {
-          await AsyncStorage.setItem('active_downloads', JSON.stringify(downloads));
-        }
-        
-        appState.current = nextAppState;
-      });
-    } catch (error) {
-    }
-
-    return () => {
-      if (subscription && typeof subscription.remove === 'function') {
-        subscription.remove();
-      }
-    };
-  }, [downloads]);
-
   const activeDownloads = Object.entries(downloads).filter(
     ([_, data]) => data.status !== 'completed' && data.status !== 'failed'
   );
@@ -116,22 +91,6 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
         delete newProgress[modelName];
         return newProgress;
       });
-
-      try {
-        const savedStates = await AsyncStorage.getItem('active_downloads');
-        if (savedStates) {
-          const parsedStates = JSON.parse(savedStates);
-          if (parsedStates[modelName]) {
-            delete parsedStates[modelName];
-            if (Object.keys(parsedStates).length > 0) {
-              await AsyncStorage.setItem('active_downloads', JSON.stringify(parsedStates));
-            } else {
-              await AsyncStorage.removeItem('active_downloads');
-            }
-          }
-        }
-      } catch (error) {
-      }
     } catch (error) {
     }
   };

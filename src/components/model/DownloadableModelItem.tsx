@@ -10,7 +10,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import { getThemeAwareColor, getBrowserDownloadTextColor } from '../../utils/ColorUtils';
-import { Dialog, Portal, PaperProvider, Button } from 'react-native-paper';
+import Dialog from '../Dialog';
 
 import { ModelType } from '../../types/models';
 
@@ -121,12 +121,16 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
                 {model.name.replace(/ \([^)]+\)$/, '')}
               </Text>
               <View style={styles.modelBadgesContainer}>
-                <View style={[styles.modelFamily, { backgroundColor: getThemeAwareColor('#4a0660', currentTheme) }]}>
-                  <Text style={styles.modelFamilyText}>{model.modelFamily}</Text>
-                </View>
-                <View style={[styles.modelQuantization, { backgroundColor: getThemeAwareColor('#2c7fb8', currentTheme) }]}>
-                  <Text style={styles.modelQuantizationText}>{model.quantization}</Text>
-                </View>
+                {model.modelFamily && (
+                  <View style={[styles.modelFamily, { backgroundColor: getThemeAwareColor('#4a0660', currentTheme) }]}>
+                    <Text style={styles.modelFamilyText}>{model.modelFamily}</Text>
+                  </View>
+                )}
+                {model.quantization && (
+                  <View style={[styles.modelQuantization, { backgroundColor: getThemeAwareColor('#2c7fb8', currentTheme) }]}>
+                    <Text style={styles.modelQuantizationText}>{model.quantization}</Text>
+                  </View>
+                )}
                 {model.tags?.includes('fastest') && (
                   <View style={[styles.modelTag, { backgroundColor: getThemeAwareColor('#00a67e', currentTheme) }]}>
                     <MaterialCommunityIcons name="flash" size={12} color={themeColors.headerText} style={{ marginRight: 4 }} />
@@ -163,7 +167,7 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
               <TouchableOpacity
                 style={[
                   styles.downloadButton, 
-                  { backgroundColor: '#4a0660' },
+                  { backgroundColor: themeColors.primary },
                   (isDownloading || isInitializing || isDownloaded) && { opacity: 0.5 }
                 ]}
                 onPress={() => onDownload(model)}
@@ -180,14 +184,14 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
                           : "cloud-download"
                   } 
                   size={20} 
-                  color="#fff" 
+                  color={themeColors.headerText} 
                 />
               </TouchableOpacity>
             </View>
           </View>
           <View style={styles.modelMetaInfo}>
             <View style={styles.metaItem}>
-              <MaterialCommunityIcons name="disc" size={16} color={themeColors.secondaryText} />
+              <MaterialCommunityIcons name="download" size={16} color={themeColors.secondaryText} />
               <Text style={[styles.metaText, { color: themeColors.secondaryText }]}>
                 {model.size}
               </Text>
@@ -219,12 +223,6 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
               </TouchableOpacity>
             )}
           </View>
-          
-          {model.description && (
-            <Text style={[styles.modelDescription, { color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
-              {model.description}
-            </Text>
-          )}
           
           {model.additionalFiles && model.additionalFiles.length > 0 && (
             <Text style={[styles.additionalFilesNote, { color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)' }]}>
@@ -264,17 +262,14 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
         </View>
       </TouchableOpacity>
 
-      <Portal>
-        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
-          <Dialog.Title>{dialogTitle}</Dialog.Title>
-          <Dialog.Content>
-            <Text>{dialogMessage}</Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={hideDialog}>OK</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <Dialog
+        visible={dialogVisible}
+        onDismiss={hideDialog}
+        title={dialogTitle}
+        description={dialogMessage}
+        buttonText="OK"
+        onClose={hideDialog}
+      />
     </>
   );
 };
@@ -378,12 +373,6 @@ const styles = StyleSheet.create({
   metaText: {
     fontSize: 13,
     marginLeft: 4,
-  },
-  modelDescription: {
-    marginTop: 4,
-    marginBottom: 6,
-    fontSize: 14,
-    lineHeight: 20,
   },
   downloadProgress: {
     marginTop: 12,

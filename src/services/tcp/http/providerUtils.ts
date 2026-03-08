@@ -10,7 +10,6 @@ export function normalizeProvider(value: any): ProviderType | undefined {
   if (
     normalized === 'gemini' ||
     normalized === 'chatgpt' ||
-    normalized === 'deepseek' ||
     normalized === 'claude' ||
     normalized === 'apple-foundation'
   ) {

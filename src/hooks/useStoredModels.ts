@@ -8,6 +8,7 @@ interface UseStoredModelsReturn {
   isRefreshing: boolean;
   loadStoredModels: (forceRefresh?: boolean) => Promise<void>;
   refreshStoredModels: () => Promise<void>;
+  rescanStoredModels: () => Promise<void>;
 }
 
 export const useStoredModels = (): UseStoredModelsReturn => {
@@ -28,9 +29,16 @@ export const useStoredModels = (): UseStoredModelsReturn => {
       setIsLoading(true);
       console.log('fetching_models');
 
-      const models = await modelDownloader.getStoredModels();
-      console.log('models_fetched', models.length);
-      setStoredModels(models);
+      const cachedModels = await modelDownloader.getStoredModels();
+      console.log('models_fetched', cachedModels.length);
+
+      if (forceRefresh || cachedModels.length === 0) {
+        const scannedModels = await modelDownloader.reloadStoredModels();
+        console.log('models_scanned', scannedModels.length);
+        setStoredModels(scannedModels);
+      } else {
+        setStoredModels(cachedModels);
+      }
     } catch (error) {
       console.log('load_models_error', error);
       setStoredModels([]);
@@ -42,11 +50,23 @@ export const useStoredModels = (): UseStoredModelsReturn => {
   }, []);
 
   const refreshStoredModels = useCallback(async () => {
-    console.log('refresh_storage_only');
+    console.log('refresh_storage_cache');
     setIsRefreshing(true);
     try {
       const models = await modelDownloader.getStoredModels();
       console.log('refresh_complete', models.length);
+      setStoredModels(models);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  const rescanStoredModels = useCallback(async () => {
+    console.log('refresh_storage_rescan');
+    setIsRefreshing(true);
+    try {
+      const models = await modelDownloader.reloadStoredModels();
+      console.log('refresh_rescan_complete', models.length);
       setStoredModels(models);
     } finally {
       setIsRefreshing(false);
@@ -59,7 +79,7 @@ export const useStoredModels = (): UseStoredModelsReturn => {
 
     const handleModelsChanged = () => {
       console.log('models_changed_event');
-      loadStoredModels(true);
+      refreshStoredModels();
     };
 
     modelDownloader.on('modelsChanged', handleModelsChanged);
@@ -68,7 +88,7 @@ export const useStoredModels = (): UseStoredModelsReturn => {
       console.log('hook_unmount');
       modelDownloader.off('modelsChanged', handleModelsChanged);
     };
-  }, [loadStoredModels]);
+  }, [loadStoredModels, refreshStoredModels]);
 
   return {
     storedModels,
@@ -76,5 +96,6 @@ export const useStoredModels = (): UseStoredModelsReturn => {
     isRefreshing,
     loadStoredModels,
     refreshStoredModels,
+    rescanStoredModels,
   };
 };

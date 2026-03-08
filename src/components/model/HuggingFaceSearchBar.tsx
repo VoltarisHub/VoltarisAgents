@@ -1,19 +1,23 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Searchbar, Button } from 'react-native-paper';
+import { Searchbar, Button, ActivityIndicator } from 'react-native-paper';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 
 interface HuggingFaceSearchBarProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  onSearchSubmit: () => void;
   onClearSearch: () => void;
+  isLoading: boolean;
 }
 
 export const HuggingFaceSearchBar: React.FC<HuggingFaceSearchBarProps> = ({
   searchQuery,
   onSearchChange,
-  onClearSearch
+  onSearchSubmit,
+  onClearSearch,
+  isLoading
 }) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
@@ -23,22 +27,26 @@ export const HuggingFaceSearchBar: React.FC<HuggingFaceSearchBarProps> = ({
       <Searchbar
         placeholder="Search on HuggingFace..."
         onChangeText={onSearchChange}
+        onSubmitEditing={onSearchSubmit}
         value={searchQuery}
         style={[styles.searchBar, { backgroundColor: themeColors.cardBackground }]}
         inputStyle={{ color: themeColors.text }}
         iconColor={themeColors.text}
       />
 
-      {searchQuery.length > 0 && (
+      {(searchQuery.length > 0 || isLoading) && (
         <View style={styles.searchActions}>
-          <Button
-            mode="outlined"
-            onPress={onClearSearch}
-            style={styles.clearButton}
-            icon="close"
-          >
-            Clear Search
-          </Button>
+          {searchQuery.length > 0 && (
+            <Button
+              mode="outlined"
+              onPress={onClearSearch}
+              style={styles.clearButton}
+              icon="close"
+            >
+              Clear Search
+            </Button>
+          )}
+          {isLoading && <ActivityIndicator size="small" color={themeColors.primary} style={styles.loader} />}
         </View>
       )}
     </>
@@ -50,9 +58,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   searchActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 16,
+    gap: 12,
   },
   clearButton: {
     alignSelf: 'flex-start',
+  },
+  loader: {
+    marginLeft: 8,
   },
 });

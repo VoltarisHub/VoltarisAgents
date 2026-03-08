@@ -1,199 +1,146 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, TouchableOpacity, Platform, Modal } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { StyleSheet, View, TouchableOpacity, Platform, Modal, ScrollView, Switch } from 'react-native';
 import { Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
-import SettingsSection from './SettingsSection';
-import * as Device from 'expo-device';
-
-type InferenceEngine = 'llama.cpp' | 'mediapipe' | 'mlc-llm' | 'mlx';
+import { EngineId } from '../../managers/inference-manager';
 
 interface InferenceEngineProps {
-  selectedEngine: InferenceEngine;
-  onEngineChange: (engine: InferenceEngine) => void;
+  enabled: Record<EngineId, boolean>;
+  onToggle: (engine: EngineId, enabled: boolean) => void;
 }
 
 const InferenceEngineSection: React.FC<InferenceEngineProps> = ({
-  selectedEngine,
-  onEngineChange,
+  enabled,
+  onToggle,
 }) => {
   const { theme: currentTheme } = useTheme();
   const [modalVisible, setModalVisible] = useState(false);
 
-  const isAppleSilicon = Platform.OS === 'ios' && (
-    Device.modelName?.includes('M1') || 
-    Device.modelName?.includes('M2') || 
-    Device.modelName?.includes('M3') ||
-    Device.modelName?.includes('M4')
-  );
+  const supportsMLX = Platform.OS === 'ios' && parseInt(String(Platform.Version), 10) >= 16;
 
-  const engines = [
+  const engines = useMemo(() => [
     {
-      id: 'llama.cpp' as InferenceEngine,
-      name: 'llama.cpp',
-      description: 'The most popular inference engine with broad model support',
-      icon: 'language-cpp',
+      id: 'llama' as const,
+      name: 'Llama.cpp',
+      description: 'Widest GGUF model support with llama.cpp',
+      icon: 'chip',
       enabled: true,
     },
     {
-      id: 'mediapipe' as InferenceEngine,
-      name: 'Google AI Edge Gallery (MediaPipe)',
-      description: 'MediaPipe LLM inference of AI Edge Gallery (not implemented)',
-      icon: 'google',
-      enabled: false,
-    },
-    {
-      id: 'mlc-llm' as InferenceEngine,
-      name: 'MLC LLM',
-      description: 'Machine Learning Compilation for LLMs (not implemented)',
-      icon: 'flash',
-      enabled: false,
-    },
-    {
-      id: 'mlx' as InferenceEngine,
+      id: 'mlx' as const,
       name: 'MLX',
-      description: 'Apple Silicon optimized inference (not implemented)',
+      description: "Machine Learning Framework developed by Apple",
       icon: 'apple',
-      enabled: false,
-      requiresAppleSilicon: true,
+      enabled: true,
+      requiresMLX: true,
+      experimental: true,
     },
-  ];
+  ], []);
 
-  const getEngineDisplayName = (engineId: InferenceEngine): string => {
-    const engine = engines.find(e => e.id === engineId);
-    return engine?.name || engineId;
-  };
-
-  const handleEngineSelect = (engine: typeof engines[0]) => {
-    if (!engine.enabled || (engine.requiresAppleSilicon && !isAppleSilicon)) {
-      return;
-    }
-    onEngineChange(engine.id);
-    setModalVisible(false);
-  };
-
-  const renderEngineItem = (engine: typeof engines[0]) => {
-    const isSelected = selectedEngine === engine.id;
-    const isDisabled = !engine.enabled || (engine.requiresAppleSilicon && !isAppleSilicon);
+  const renderEngineItem = (engine: (typeof engines)[number]) => {
+    const isDisabled = !engine.enabled || (engine.requiresMLX && !supportsMLX);
+    const themeColors = theme[currentTheme];
 
     return (
-      <TouchableOpacity
+      <View
         key={engine.id}
         style={[
           styles.engineItem,
-          { backgroundColor: theme[currentTheme].borderColor },
-          isSelected && styles.selectedEngineItem,
-          isDisabled && styles.engineItemDisabled
+          { backgroundColor: themeColors.borderColor },
+          isDisabled && styles.engineItemDisabled,
         ]}
-        onPress={() => handleEngineSelect(engine)}
-        disabled={isDisabled}
       >
-        <View style={styles.engineIconContainer}>
-          <MaterialCommunityIcons 
-            name={engine.icon as any}
-            size={28} 
-            color={isDisabled ? theme[currentTheme].secondaryText : (isSelected ? theme[currentTheme].primary : theme[currentTheme].text)} 
-          />
-        </View>
         <View style={styles.engineInfo}>
-          <Text 
+          <View style={styles.engineHeader}>
+            <Text
+              style={[
+                styles.engineName,
+                {
+                  color: isDisabled
+                    ? (currentTheme === 'dark' ? '#666' : themeColors.secondaryText)
+                    : (currentTheme === 'dark' ? '#fff' : themeColors.text),
+                  fontWeight: '500',
+                },
+              ]}
+            >
+              {engine.name}
+            </Text>
+            {engine.experimental && (
+              <View style={[styles.tag, { backgroundColor: themeColors.primary + '20' }]}>
+                <Text style={[styles.tagText, { color: themeColors.primary }]}>Experimental</Text>
+              </View>
+            )}
+          </View>
+          <Text
             style={[
-              styles.engineName, 
-              { 
-                color: isDisabled ? theme[currentTheme].secondaryText : theme[currentTheme].text,
-                fontWeight: isSelected ? '600' : '500',
-              }
-            ]}
-          >
-            {engine.name}
-          </Text>
-          <Text 
-            style={[
-              styles.engineDescription, 
-              { color: isDisabled ? theme[currentTheme].secondaryText : theme[currentTheme].secondaryText }
+              styles.engineDescription,
+              { color: isDisabled ? (currentTheme === 'dark' ? '#666' : themeColors.secondaryText) : (currentTheme === 'dark' ? '#aaa' : themeColors.secondaryText) },
             ]}
           >
             {engine.description}
           </Text>
-          {engine.requiresAppleSilicon && !isAppleSilicon && (
-            <Text style={[styles.requirementText, { color: '#FF3B30' }]}>
-              Requires Apple Silicon
-            </Text>
+          {engine.requiresMLX && !supportsMLX && (
+            <Text style={[styles.requirementText, { color: currentTheme === 'dark' ? '#FF9494' : '#d32f2f' }]}>Requires iOS 16+</Text>
           )}
         </View>
-        {isSelected && (
-          <View style={styles.selectedIndicator}>
-            <MaterialCommunityIcons 
-              name="check-circle" 
-              size={24} 
-              color={theme[currentTheme].primary} 
-            />
-          </View>
-        )}
-      </TouchableOpacity>
+        <Switch
+          value={Boolean(enabled[engine.id])}
+          onValueChange={(value) => {
+            if (isDisabled) return;
+            onToggle(engine.id, value);
+          }}
+          disabled={isDisabled}
+          trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '80' }}
+          thumbColor={enabled[engine.id] ? themeColors.primary : themeColors.background}
+        />
+      </View>
     );
   };
 
+  const themeColors = theme[currentTheme];
+  const iconColor = currentTheme === 'dark' ? '#FFFFFF' : themeColors.primary;
+
   return (
     <>
-      <SettingsSection title="INFERENCE ENGINE">
-        <TouchableOpacity
-          style={styles.settingItem}
-          onPress={() => setModalVisible(true)}
-        >
-          <View style={styles.settingLeft}>
-            <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : theme[currentTheme].primary + '20' }]}>
-              <MaterialCommunityIcons 
-                name="engine"
-                size={22} 
-                color={currentTheme === 'dark' ? '#FFFFFF' : theme[currentTheme].primary} 
-              />
-            </View>
-            <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: theme[currentTheme].text }]}>
-                Inference Engine
-              </Text>
-              <Text style={[styles.settingDescription, { color: theme[currentTheme].secondaryText }]}>
-                {getEngineDisplayName(selectedEngine)}
-              </Text>
-            </View>
+      <TouchableOpacity
+        style={[styles.settingItem, styles.settingItemBottomBorder]}
+        onPress={() => setModalVisible(true)}
+      >
+        <View style={styles.settingLeft}>
+          <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+            <MaterialCommunityIcons name="engine" size={22} color={iconColor} />
           </View>
-          <MaterialCommunityIcons 
-            name="chevron-right" 
-            size={20} 
-            color={theme[currentTheme].secondaryText} 
-          />
-        </TouchableOpacity>
-      </SettingsSection>
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: themeColors.text }]}>Inference</Text>
+            <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+              Enable or disable local inference engines
+            </Text>
+          </View>
+        </View>
+        <MaterialCommunityIcons name="chevron-right" size={24} color={themeColors.secondaryText} />
+      </TouchableOpacity>
 
       <Modal
         visible={modalVisible}
-        transparent={true}
+        transparent
         animationType="slide"
         onRequestClose={() => setModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme[currentTheme].background }]}>
+          <View style={[styles.modalContent, { backgroundColor: themeColors.background }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme[currentTheme].text }]}>
-                Select Inference Engine
-              </Text>
-              <TouchableOpacity 
-                onPress={() => setModalVisible(false)}
-                style={styles.closeButton}
-              >
-                <MaterialCommunityIcons 
-                  name="close" 
-                  size={24} 
-                  color={theme[currentTheme].text} 
-                />
+              <Text style={[styles.modalTitle, { color: themeColors.text }]}>Enable or disable inferences</Text>
+              <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
+                <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.engineList}>
+            <ScrollView style={styles.engineList} showsVerticalScrollIndicator={false}>
               {engines.map(renderEngineItem)}
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -211,6 +158,10 @@ const styles = StyleSheet.create({
   settingItemBorder: {
     borderTopWidth: 1,
     borderTopColor: 'rgba(150, 150, 150, 0.1)',
+  },
+  settingItemBottomBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(150, 150, 150, 0.1)',
   },
   settingLeft: {
     flexDirection: 'row',
@@ -251,7 +202,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
   },
   modalTitle: {
     fontSize: 20,
@@ -268,29 +219,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderRadius: 12,
-    marginBottom: 8,
-  },
-  selectedEngineItem: {
-    backgroundColor: 'rgba(74, 6, 96, 0.1)',
+    marginBottom: 12,
   },
   engineItemDisabled: {
     opacity: 0.5,
   },
-  engineIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(74, 6, 96, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
   engineInfo: {
     flex: 1,
   },
+  engineHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    gap: 8,
+  },
   engineName: {
     fontSize: 16,
-    marginBottom: 4,
+    fontWeight: '500',
+  },
+  tag: {
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  tagText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   engineDescription: {
     fontSize: 14,
@@ -300,9 +254,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontWeight: '500',
   },
-  selectedIndicator: {
-    marginLeft: 12,
-  },
 });
 
-export default InferenceEngineSection; 
+export default InferenceEngineSection;

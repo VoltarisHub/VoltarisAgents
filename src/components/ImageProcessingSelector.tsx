@@ -7,7 +7,8 @@ import {
   Switch,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Text, Button, Dialog, Portal } from 'react-native-paper';
+import { Text } from 'react-native-paper';
+import Dialog from './Dialog';
 import { useTheme } from '../context/ThemeContext';
 import { useModel } from '../context/ModelContext';
 import { theme } from '../constants/theme';
@@ -80,7 +81,7 @@ export default function ImageProcessingSelector({
         return;
       }
       
-      const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
+      const isOnlineModel = ['gemini', 'chatgpt', 'claude', 'apple-foundation'].includes(selectedModelPath);
       
       if (isOnlineModel) {
         onModeChange('multimodal');
@@ -133,7 +134,7 @@ export default function ImageProcessingSelector({
       case 'ocr':
         return 'Extract text from the image';
       case 'multimodal':
-        const isOnlineModel = selectedModelPath && ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
+        const isOnlineModel = selectedModelPath && ['gemini', 'chatgpt', 'claude', 'apple-foundation'].includes(selectedModelPath);
         return isOnlineModel ? 'Analyze image content with AI' : 'Analyze image content with AI vision';
       case null:
       default:
@@ -144,9 +145,9 @@ export default function ImageProcessingSelector({
   const canUseMultimodal = (): boolean => {
     if (!selectedModelPath) return false;
     
-    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
+    const isOnlineModel = ['gemini', 'chatgpt', 'claude', 'apple-foundation'].includes(selectedModelPath);
     if (isOnlineModel) {
-      return selectedModelPath !== 'deepseek' && selectedModelPath !== 'apple-foundation';
+      return selectedModelPath !== 'apple-foundation';
     }
     
     return isMultimodalEnabled;
@@ -155,7 +156,7 @@ export default function ImageProcessingSelector({
   const getMultimodalTitle = (): string => {
     if (!selectedModelPath) return 'Vision Analysis';
     
-    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
+    const isOnlineModel = ['gemini', 'chatgpt', 'claude', 'apple-foundation'].includes(selectedModelPath);
     return isOnlineModel ? 'Vision Analysis' : 'Multimodal (AI Vision)';
   };
 
@@ -325,8 +326,13 @@ export default function ImageProcessingSelector({
         </View>
       )}
 
-      <Portal>
-        <Dialog visible={mmProjSelectorVisible} onDismiss={handleProjectorSelectorClose}>
+      <Dialog visible={mmProjSelectorVisible} onDismiss={handleProjectorSelectorClose}
+        primaryButtonText="Skip"
+        onPrimaryPress={handleProjectorSkip}
+        primaryButtonDisabled={isLoadingProjector}
+        secondaryButtonText="Cancel"
+        onSecondaryPress={handleProjectorSelectorClose}
+      >
           <Dialog.Title style={{ color: isDark ? '#ffffff' : '#000000' }}>
             Select Multimodal Projector
           </Dialog.Title>
@@ -396,24 +402,7 @@ export default function ImageProcessingSelector({
               ))
             )}
           </Dialog.Content>
-          <Dialog.Actions>
-            <Button 
-              onPress={handleProjectorSkip}
-              textColor={getThemeAwareColor('#4a0660', currentTheme)}
-              disabled={isLoadingProjector}
-            >
-              Skip
-            </Button>
-            <Button 
-              onPress={handleProjectorSelectorClose}
-              textColor={getThemeAwareColor('#4a0660', currentTheme)}
-              disabled={isLoadingProjector}
-            >
-              Cancel
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      </Dialog>
     </View>
   );
 }

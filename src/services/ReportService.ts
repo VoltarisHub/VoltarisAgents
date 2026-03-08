@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import * as FileSystem from 'expo-file-system';
+import { fs as FileSystem } from './fs';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { firestore } from '../config/firebase';
 import { 

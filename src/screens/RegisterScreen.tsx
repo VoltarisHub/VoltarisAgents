@@ -16,17 +16,16 @@ import { RootStackParamList } from '../types/navigation';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
-import { 
+import {
   TextInput, 
   Text, 
   Surface, 
   Button, 
   HelperText,
   Divider,
-  Dialog,
-  Portal,
   Checkbox,
 } from 'react-native-paper';
+import Dialog from '../components/Dialog';
 import { registerWithEmail, signInWithGoogle, isEmailFromTrustedProvider, signInWithApple } from '../services/FirebaseService';
 import * as AppleAuthentication from 'expo-apple-authentication';
 
@@ -60,9 +59,27 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
   const redirectAfterRegister = route.params?.redirectTo || 'MainTabs';
   const redirectParams = route.params?.redirectParams || { screen: 'HomeTab' };
 
+  const navigateAfterAuth = () => {
+    if (redirectAfterRegister === 'MainTabs') {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'MainTabs', params: redirectParams as any }],
+      });
+      return;
+    }
+
+    navigation.reset({
+      index: 1,
+      routes: [
+        { name: 'MainTabs', params: { screen: 'HomeTab' } as any },
+        { name: redirectAfterRegister as any, params: redirectParams as any },
+      ],
+    });
+  };
+
   const handleOpenTerms = async () => {
     try {
-      await WebBrowser.openBrowserAsync('https://inferra.me/terms-conditions');
+      await WebBrowser.openBrowserAsync('https://inferrlm.app/terms-conditions');
     } catch (error) {
       setError('Failed to open Terms & Conditions. Please try again.');
     }
@@ -70,7 +87,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
 
   const handleOpenPrivacy = async () => {
     try {
-      await WebBrowser.openBrowserAsync('https://inferra.me/privacy-policy');
+      await WebBrowser.openBrowserAsync('https://inferrlm.app/privacy-policy');
     } catch (error) {
       setError('Failed to open Privacy Policy. Please try again.');
     }
@@ -179,15 +196,8 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
       
       if (result.success) {
         await checkLoginStatus();
-        
-        navigation.reset({
-          index: 0,
-          routes: [
-            redirectAfterRegister === 'MainTabs' 
-              ? { name: 'MainTabs', params: redirectParams as any }
-              : { name: redirectAfterRegister as any }
-          ],
-        });
+
+        navigateAfterAuth();
       } else {
         setError(result.error || 'Google sign-in failed. Please try again.');
       }
@@ -216,14 +226,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
       if (result.success) {
         await checkLoginStatus();
 
-        navigation.reset({
-          index: 0,
-          routes: [
-            redirectAfterRegister === 'MainTabs' 
-              ? { name: 'MainTabs', params: redirectParams as any }
-              : { name: redirectAfterRegister as any }
-          ],
-        });
+        navigateAfterAuth();
       } else {
         setError(result.error || 'Apple sign-in failed. Please try again.');
       }
@@ -451,41 +454,20 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <Portal>
-        <Dialog visible={dialogVisible} onDismiss={() => {
+      <Dialog
+        visible={dialogVisible}
+        onDismiss={() => {
           setDialogVisible(false);
-          navigation.reset({
-            index: 0,
-            routes: [
-              redirectAfterRegister === 'MainTabs' 
-                ? { name: 'MainTabs', params: redirectParams as any }
-                : { name: redirectAfterRegister as any }
-            ],
-          });
-        }}>
-          <Dialog.Title>Email Verification</Dialog.Title>
-          <Dialog.Content>
-            <Text variant="bodyMedium">
-              A verification email has been sent to your email address. Please verify your email before continuing.
-            </Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button 
-              key="dialog-ok-button"
-              onPress={() => {
-                setDialogVisible(false);
-                navigation.reset({
-                  index: 0,
-                  routes: [
-                    redirectAfterRegister === 'MainTabs' 
-                      ? { name: 'MainTabs', params: redirectParams as any }
-                      : { name: redirectAfterRegister as any }
-                  ],
-                });
-              }}>OK</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+          navigateAfterAuth();
+        }}
+        title="Email Verification"
+        description="A verification email has been sent to your email address. Please verify your email before continuing."
+        buttonText="OK"
+        onClose={() => {
+          setDialogVisible(false);
+          navigateAfterAuth();
+        }}
+      />
     </SafeAreaView>
   );
 }

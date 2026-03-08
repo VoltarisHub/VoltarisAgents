@@ -1,9 +1,9 @@
 export default {
   expo: {
     name: "InferrLM",
-    slug: "inferra",
+    slug: "inferrlm",
     owner: "subhajitgorai",
-    version: "0.7.8",
+    version: "0.7.9",
     orientation: "default",
     icon: "./assets/icon.png",
     userInterfaceStyle: "automatic",
@@ -14,13 +14,12 @@ export default {
     splash: {
       image: "./assets/splash.png",
       resizeMode: "cover",
-      
       backgroundColor: "#660880"
     },
     updates: {
       enabled: true,
       checkAutomatically: 'ON_LOAD',
-      url: "https://u.expo.dev/5ef5d807-bc8b-4dcb-a3f4-2bad3c098b3e"
+      url: "https://u.expo.dev/a539a082-58a3-4f29-9bb7-107913124e7d"
     },
     assetBundlePatterns: [
       "**/*"
@@ -29,9 +28,9 @@ export default {
       supportsTablet: true,
       requireFullScreen: false,
       bundleIdentifier: "com.gorai.inferra",
-      buildNumber: "280",
-      runtimeVersion: "0.7.8",
-      deploymentTarget: "17.0",
+      buildNumber: "281",
+      runtimeVersion: "0.7.9",
+      deploymentTarget: "26.0",
       infoPlist: {
         UIBackgroundModes: [
           "fetch",
@@ -59,14 +58,15 @@ export default {
       scheme: "com.gorai.inferra"
     },
     android: {
-      versionCode: 280,
+      versionCode: 281,
+      predictiveBackGestureEnabled: false,
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#660880"
       },
       package: "com.gorai.ragionare",
-      runtimeVersion: "0.7.8",
-      googleServicesFile: "./android/app/google-services.json",
+      runtimeVersion: "0.7.9",
+      googleServicesFile: "./google-services.json",
       edgeToEdgeEnabled: true,
       resizeableActivity: true,
       supportsFreeform: true,
@@ -103,7 +103,6 @@ export default {
     extra: {
       GEMINI_API_KEY: process.env.GEMINI_API_KEY,
       OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-      DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
       HUGGINGFACE_TOKEN: process.env.HUGGINGFACE_TOKEN,
       GOOGLE_SIGN_IN_WEB_CLIENT_ID: process.env.GOOGLE_SIGN_IN_WEB_CLIENT_ID,
@@ -116,17 +115,20 @@ export default {
       FIREBASE_APP_ID: process.env.FIREBASE_APP_ID,
       FIREBASE_MEASUREMENT_ID: process.env.FIREBASE_MEASUREMENT_ID,
       eas: {
-        projectId: "5ef5d807-bc8b-4dcb-a3f4-2bad3c098b3e"
+        projectId: "a539a082-58a3-4f29-9bb7-107913124e7d"
       },
     },
     plugins: [
       "expo-font",
       "expo-web-browser",
       "expo-asset",
+      "expo-localization",
       "expo-background-task",
       "expo-router",
       "expo-secure-store",
       "expo-sqlite",
+      "./modules/local-server/plugin",
+      "./modules/transfer/plugin",
       [
         "expo-build-properties",
         {
@@ -135,7 +137,7 @@ export default {
             "targetSdkVersion": 36
           },
           "ios": {
-            "deploymentTarget": "17.0"
+            "deploymentTarget": "26.0"
           }
         }
       ],

@@ -12,7 +12,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { modelDownloader } from '../services/ModelDownloader';
 import { ThemeColors } from '../types/theme';
 import { getThemeAwareColor } from '../utils/ColorUtils';
-import { Dialog, Portal, PaperProvider, Text, Button } from 'react-native-paper';
+import { Text } from 'react-native-paper';
+import Dialog from './Dialog';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 interface ModelDownloaderProps {
@@ -149,17 +150,14 @@ const ModelDownloaderComponent = ({ downloadProgress, onDownloadStart }: ModelDo
         </View>
       </Modal>
 
-      <Portal>
-        <Dialog visible={dialogVisible} onDismiss={hideAppDialog}>
-          <Dialog.Title>{dialogTitle}</Dialog.Title>
-          <Dialog.Content>
-            <Text variant="bodyMedium">{dialogMessage}</Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={hideAppDialog}>OK</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <Dialog
+        visible={dialogVisible}
+        onDismiss={hideAppDialog}
+        title={dialogTitle}
+        description={dialogMessage}
+        buttonText="OK"
+        onClose={hideAppDialog}
+      />
 
       <View style={styles.container}>
         {currentProgress && (

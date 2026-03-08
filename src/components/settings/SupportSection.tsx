@@ -1,46 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import SettingsSection from './SettingsSection';
-import AITermsDialog from '../chat/AITermsDialog';
-
-const AI_TERMS_ACCEPTED_KEY = '@ai_terms_accepted';
 
 type SupportSectionProps = {
   onOpenLink: (url: string) => void;
   onNavigateToLicenses: () => void;
+  onNavigateToContentTerms: () => void;
 };
 
-const SupportSection = ({ onOpenLink, onNavigateToLicenses }: SupportSectionProps) => {
+const SupportSection = ({ onOpenLink, onNavigateToLicenses, onNavigateToContentTerms }: SupportSectionProps) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
   const iconColor = currentTheme === 'dark' ? '#FFFFFF' : themeColors.primary;
-  const [termsAccepted, setTermsAccepted] = useState(false);
-  const [showTermsDialog, setShowTermsDialog] = useState(false);
-
-  useEffect(() => {
-    loadTermsAcceptance();
-  }, []);
-
-  const loadTermsAcceptance = async () => {
-    try {
-      const termsValue = await AsyncStorage.getItem(AI_TERMS_ACCEPTED_KEY);
-      setTermsAccepted(termsValue === 'true');
-    } catch (error) {
-    }
-  };
-
-  const handleAcceptTerms = async () => {
-    try {
-      await AsyncStorage.setItem(AI_TERMS_ACCEPTED_KEY, 'true');
-      setTermsAccepted(true);
-      setShowTermsDialog(false);
-    } catch (error) {
-    }
-  };
 
   return (
     <>
@@ -87,7 +61,7 @@ const SupportSection = ({ onOpenLink, onNavigateToLicenses }: SupportSectionProp
               Star on GitHub
             </Text>
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-              View InferrLM on GitHub
+              View & star InferrLM on GitHub
             </Text>
           </View>
         </View>
@@ -116,7 +90,7 @@ const SupportSection = ({ onOpenLink, onNavigateToLicenses }: SupportSectionProp
 
       <TouchableOpacity 
         style={[styles.settingItem, styles.settingItemBorder]}
-        onPress={() => onOpenLink('https://inferra.me/privacy-policy')}
+        onPress={() => onOpenLink('https://inferrlm.app/privacy-policy')}
       >
         <View style={styles.settingLeft}>
           <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
@@ -127,7 +101,7 @@ const SupportSection = ({ onOpenLink, onNavigateToLicenses }: SupportSectionProp
               Privacy Policy
             </Text>
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-              View the app's privacy policy page
+              View InferrLM's privacy policy
             </Text>
           </View>
         </View>
@@ -136,7 +110,7 @@ const SupportSection = ({ onOpenLink, onNavigateToLicenses }: SupportSectionProp
 
       <TouchableOpacity 
           style={[styles.settingItem, styles.settingItemBorder]}
-          onPress={() => setShowTermsDialog(true)}
+          onPress={onNavigateToContentTerms}
         >
           <View style={styles.settingLeft}>
           <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
@@ -182,12 +156,6 @@ const SupportSection = ({ onOpenLink, onNavigateToLicenses }: SupportSectionProp
           />
         </TouchableOpacity>
     </SettingsSection>
-
-    <AITermsDialog
-      visible={showTermsDialog}
-      onDismiss={() => setShowTermsDialog(false)}
-      onAccept={handleAcceptTerms}
-    />
   </>
   );
 };

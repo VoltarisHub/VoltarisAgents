@@ -1,13 +1,16 @@
-import React, { useState, useEffect, forwardRef, useImperativeHandle, useMemo } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle, useMemo, useRef } from 'react';
 import {
   View,
-  StyleSheet,
+  Animated,
+  Easing,
+  Dimensions,
   TouchableOpacity,
-  Modal,
+  BackHandler,
   ActivityIndicator,
   SectionList,
   Platform,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -17,63 +20,93 @@ import { useModel } from '../context/ModelContext';
 import { useRemoteModel } from '../context/RemoteModelContext';
 import { getThemeAwareColor } from '../utils/ColorUtils';
 import { onlineModelService } from '../services/OnlineModelService';
-import { Dialog, Portal, Text, Button } from 'react-native-paper';
+import { engineService } from '../services/inference-engine-service';
+import { llamaManager } from '../utils/LlamaManager';
+import { Portal, Text } from 'react-native-paper';
+import Dialog from './Dialog';
+import Slider from '@react-native-community/slider';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { appleFoundationService } from '../services/AppleFoundationService';
 import type { ProviderType } from '../services/ModelManagementService';
+import { LLAMA_INIT_CONFIG } from '../config/llamaConfig';
 import { useStoredModels } from '../hooks/useStoredModels';
+import type { StoredModel, OnlineModel, AppleFoundationModel, MLXGroup, Model, ModelSelectorRef, ModelSelectorProps, SectionData } from './ModelSelector.types';
+import { ONLINE_MODELS } from './ModelSelector.constants';
+import { formatBytes, getDisplayName, getModelNameFromPath, getProjectorNameFromPath, isMLXModel, groupMLXModels, getActiveModelIcon, getConnectionBadgeConfig } from './ModelSelector.utils';
+import { styles } from './ModelSelector.styles';
+import { renderAppleFoundationItem, renderLocalModelItem, renderOnlineModelItem, renderSectionHeader, renderItem, type RenderContext } from './ModelSelector.renderers';
 
-interface StoredModel {
-  name: string;
-  path: string;
-  size: number;
-  modified: string;
-  isExternal?: boolean;
-  originalPath?: string;
-}
+export type { ModelSelectorRef } from './ModelSelector.types';
 
-interface OnlineModel {
-  id: string;
-  name: string;
-  provider: string;
-  isOnline: true;
-}
+const initKey = 'model_selector_init_v1';
 
-interface AppleFoundationModel {
-  id: string;
-  name: string;
-  provider: string;
-  isAppleFoundation: true;
-}
+type InitOverrides = {
+  n_ctx: number;
+  n_batch: number;
+  n_parallel: number;
+  n_threads: number;
+  n_gpu_layers: number;
+};
 
-type Model = StoredModel | OnlineModel | AppleFoundationModel;
+const defaultInit: InitOverrides = {
+  n_ctx: LLAMA_INIT_CONFIG.n_ctx,
+  n_batch: LLAMA_INIT_CONFIG.n_batch,
+  n_parallel: LLAMA_INIT_CONFIG.n_parallel,
+  n_threads: LLAMA_INIT_CONFIG.n_threads,
+  n_gpu_layers: LLAMA_INIT_CONFIG.n_gpu_layers,
+};
 
-export interface ModelSelectorRef {
-  refreshModels: () => void;
-}
+const toNum = (value: unknown, fallback: number) => {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return fallback;
+  }
+  return Math.round(value);
+};
 
-interface ModelSelectorProps {
-  isOpen?: boolean;
-  onClose?: () => void;
-  preselectedModelPath?: string | null;
-  isGenerating?: boolean;
-  onModelSelect?: (provider: ProviderType, modelPath?: string, projectorPath?: string) => void | Promise<void>;
-  navigation?: NativeStackNavigationProp<RootStackParamList>;
-}
+const parseInit = (raw: string): InitOverrides => {
+  try {
+    const parsed = JSON.parse(raw) as Partial<InitOverrides>;
+    return {
+      n_ctx: toNum(parsed.n_ctx, defaultInit.n_ctx),
+      n_batch: toNum(parsed.n_batch, defaultInit.n_batch),
+      n_parallel: toNum(parsed.n_parallel, defaultInit.n_parallel),
+      n_threads: toNum(parsed.n_threads, defaultInit.n_threads),
+      n_gpu_layers: toNum(parsed.n_gpu_layers, defaultInit.n_gpu_layers),
+    };
+  } catch {
+    return defaultInit;
+  }
+};
 
-const ONLINE_MODELS: OnlineModel[] = [
-  { id: 'gemini', name: 'Gemini', provider: 'Google', isOnline: true },
-  { id: 'chatgpt', name: 'ChatGPT', provider: 'OpenAI', isOnline: true },
-  { id: 'deepseek', name: 'DeepSeek', provider: 'DeepSeek', isOnline: true },
-  { id: 'claude', name: 'Claude', provider: 'Anthropic', isOnline: true },
-];
+const getDir = (path: string) => {
+  const normalized = path.replace(/\/+$|\/+$/g, '');
+  const idx = normalized.lastIndexOf('/');
+  return idx > 0 ? normalized.slice(0, idx) : '';
+};
 
-interface SectionData {
-  title: string;
-  data: Model[];
-}
+const getFile = (path: string) => {
+  const idx = path.lastIndexOf('/');
+  return idx >= 0 ? path.slice(idx + 1) : path;
+};
+
+const hasCompleteMlxPackage = (files: StoredModel[]) => {
+  if (files.some(file => file.isDirectory && file.modelFormat === 'mlx')) {
+    return true;
+  }
+
+  const names = new Set(files.map(file => getFile(file.path).toLowerCase()));
+  const hasRequiredConfig =
+    names.has('config.json') &&
+    names.has('tokenizer.json') &&
+    names.has('tokenizer_config.json');
+  const hasWeights = files.some(file => {
+    const name = getFile(file.path).toLowerCase();
+    return name.endsWith('.safetensors') || name.endsWith('.npz');
+  });
+  return hasRequiredConfig && hasWeights;
+};
 
 const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorProps>(
   ({ isOpen, onClose, preselectedModelPath, isGenerating, onModelSelect, navigation: propNavigation }, ref) => {
@@ -88,29 +121,46 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const [onlineModelStatuses, setOnlineModelStatuses] = useState<{[key: string]: boolean}>({
       gemini: false,
       chatgpt: false,
-      deepseek: false,
       claude: false
     });
+    const [cloneModels, setCloneModels] = useState<OnlineModel[]>([]);
     const [isOnlineModelsExpanded, setIsOnlineModelsExpanded] = useState(false);
     const [isLocalModelsExpanded, setIsLocalModelsExpanded] = useState(true);
 
     const [dialogVisible, setDialogVisible] = useState(false);
     const [dialogTitle, setDialogTitle] = useState('');
     const [dialogMessage, setDialogMessage] = useState('');
-    const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
+    const [dialogPrimaryText, setDialogPrimaryText] = useState<string | undefined>();
+    const [dialogPrimaryPress, setDialogPrimaryPress] = useState<(() => void) | undefined>();
+    const [dialogSecondaryText, setDialogSecondaryText] = useState<string | undefined>();
+    const [dialogSecondaryPress, setDialogSecondaryPress] = useState<(() => void) | undefined>();
 
     const [projectorSelectorVisible, setProjectorSelectorVisible] = useState(false);
     const [projectorModels, setProjectorModels] = useState<StoredModel[]>([]);
     const [selectedVisionModel, setSelectedVisionModel] = useState<Model | null>(null);
   const [appleFoundationEnabled, setAppleFoundationEnabled] = useState(false);
   const [appleFoundationAvailable, setAppleFoundationAvailable] = useState(false);
+    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+    const [initOverrides, setInitOverrides] = useState<InitOverrides>(defaultInit);
+    const [initHydrated, setInitHydrated] = useState(false);
+    const [showInitPanel, setShowInitPanel] = useState(false);
+    const getScreenH = () => Dimensions.get('window').height;
+    const slideAnim = useRef(new Animated.Value(getScreenH())).current;
+    const backdropAnim = useRef(new Animated.Value(0)).current;
+    const [overlayActive, setOverlayActive] = useState(false);
+    const modelSelectInFlightRef = useRef(false);
+    const handledPreselectedPathRef = useRef<string | null>(null);
 
     const hideDialog = () => setDialogVisible(false);
 
-    const showDialog = (title: string, message: string, actions: React.ReactNode[]) => {
+    const showDialog = (title: string, message: string, primary?: { label: string; onPress: () => void }, secondary?: { label: string; onPress: () => void }) => {
       setDialogTitle(title);
       setDialogMessage(message);
-      setDialogActions(actions);
+      const autoClose = () => setDialogVisible(false);
+      setDialogPrimaryText(primary?.label ?? 'OK');
+      setDialogPrimaryPress(primary ? () => primary.onPress : autoClose);
+      setDialogSecondaryText(secondary?.label);
+      setDialogSecondaryPress(secondary ? () => secondary.onPress : undefined);
       setDialogVisible(true);
     };
 
@@ -120,6 +170,18 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
     const toggleOnlineModelsDropdown = () => {
       setIsOnlineModelsExpanded(!isOnlineModelsExpanded);
+    };
+
+    const toggleGroup = (key: string) => {
+      setExpandedGroups(prev => {
+        const next = new Set(prev);
+        if (next.has(key)) {
+          next.delete(key);
+        } else {
+          next.add(key);
+        }
+        return next;
+      });
     };
 
     const refreshAppleFoundationState = async () => {
@@ -140,10 +202,49 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     };
 
     const sections = useMemo(() => {
-      const completedModels = models.filter(model => {
+      const visibleModels = (() => {
+        const withoutTemp = models.filter(model => {
+          const lowerName = model.name.toLowerCase();
+          const lowerPath = model.path.toLowerCase();
+          return !lowerName.startsWith('temp_mlx_') && !lowerPath.includes('/temp_mlx_');
+        });
+
+        const mlxFiles = withoutTemp.filter(model => {
+          const lowerPath = model.path.toLowerCase();
+          return lowerPath.includes('/models/mlx/') || model.modelFormat === 'mlx';
+        });
+
+        const mlxByDir = mlxFiles.reduce<Record<string, StoredModel[]>>((acc, model) => {
+          const dir = model.isDirectory ? model.path : getDir(model.path);
+          if (!dir) {
+            return acc;
+          }
+          if (!acc[dir]) {
+            acc[dir] = [];
+          }
+          acc[dir].push(model);
+          return acc;
+        }, {});
+
+        const incompleteDirs = new Set(
+          Object.entries(mlxByDir)
+            .filter(([, files]) => !hasCompleteMlxPackage(files))
+            .map(([dir]) => dir)
+        );
+
+        return withoutTemp.filter(model => {
+          const lowerPath = model.path.toLowerCase();
+          if (!lowerPath.includes('/models/mlx/')) {
+            return true;
+          }
+          const dirKey = model.isDirectory ? model.path : getDir(model.path);
+          return !incompleteDirs.has(dirKey);
+        });
+      })();
+
+      const completedModels = visibleModels.filter(model => {
         const isProjectorModel = model.name.toLowerCase().includes('mmproj') ||
                                  model.name.toLowerCase().includes('.proj');
-
         return !isProjectorModel;
       });
 
@@ -159,15 +260,19 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         });
       }
 
-      localModels.push(...completedModels);
+      const mlxModels = completedModels.filter(isMLXModel);
+      const ggufModels = completedModels.filter(model => !isMLXModel(model));
+      const groupedMlx = groupMLXModels(mlxModels);
+
+      localModels.push(...ggufModels, ...groupedMlx);
 
       if (localModels.length > 0) {
         sectionsData.push({ title: 'Local Models', data: localModels });
       }
 
-      sectionsData.push({ title: 'Remote Models', data: ONLINE_MODELS });
+      sectionsData.push({ title: 'Remote Models', data: [...ONLINE_MODELS, ...cloneModels] });
       return sectionsData;
-    }, [models, appleFoundationEnabled, appleFoundationAvailable]);
+    }, [models, appleFoundationEnabled, appleFoundationAvailable, cloneModels]);
 
     useEffect(() => {
       if (sections.length > 0 && sections[0]?.data?.length > 0) {
@@ -189,20 +294,42 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
     useEffect(() => {
       checkOnlineModelApiKeys();
+      loadCloneModels();
     }, []);
+
+    const loadCloneModels = async () => {
+      try {
+        const clones = (await onlineModelService.listClones()).filter(c => ['gemini', 'chatgpt', 'claude'].includes(c.baseProvider));
+        const models = clones.map(c => ({
+          id: c.id,
+          name: c.displayName,
+          provider: c.baseProvider,
+          isOnline: true as const,
+        }));
+        setCloneModels(models);
+        return clones;
+      } catch (error) {
+        return [];
+      }
+    };
 
     const checkOnlineModelApiKeys = async () => {
       try {
         const hasGeminiKey = await onlineModelService.hasApiKey('gemini');
         const hasOpenAIKey = await onlineModelService.hasApiKey('chatgpt');
-        const hasDeepSeekKey = await onlineModelService.hasApiKey('deepseek');
         const hasClaudeKey = await onlineModelService.hasApiKey('claude');
+
+        const clones = (await onlineModelService.listClones()).filter(c => ['gemini', 'chatgpt', 'claude'].includes(c.baseProvider));
+        const cloneStatuses: {[key: string]: boolean} = {};
+        for (const clone of clones) {
+          cloneStatuses[clone.id] = await onlineModelService.hasApiKey(clone.id);
+        }
         
         const newStatuses = {
           gemini: hasGeminiKey,
           chatgpt: hasOpenAIKey,
-          deepseek: hasDeepSeekKey,
-          claude: hasClaudeKey
+          claude: hasClaudeKey,
+          ...cloneStatuses,
         };
         
         setOnlineModelStatuses(newStatuses);
@@ -214,72 +341,190 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       }
     };
 
-    const handleModelSelect = async (model: Model) => {
-      setModalVisible(false);
-      
-      if (isGenerating) {
-        showDialog(
-          'Model In Use',
-          'Cannot change model while generating a response. Please wait for the current generation to complete or cancel it.',
-          [<Button key="ok" onPress={hideDialog}>OK</Button>]
-        );
-        return;
-      }
-      
-      if ('isAppleFoundation' in model) {
-        if (onModelSelect) {
-          onModelSelect('apple-foundation');
-        }
-        return;
-      }
-      if ('isOnline' in model) {
-        if (!enableRemoteModels || !isLoggedIn) {
-          setTimeout(() => {
-            showDialog(
-              'Remote Models Disabled',
-              'Remote models require the "Enable Remote Models" setting to be turned on and you need to be signed in. Would you like to go to Settings to configure this?',
-              [
-                <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
-                <Button 
-                  key="settings" 
-                  onPress={() => {
-                    hideDialog();
-                    if (onClose) onClose();
-                    navigation.navigate('MainTabs', { screen: 'SettingsTab' });
-                  }}
-                >
-                  Go to Settings
-                </Button>
-              ]
-            );
-          }, 300);
-          return;
-        }
-        
-        if (!onlineModelStatuses[model.id]) {
-          handleApiKeyRequired(model);
-          return;
-        }
-        
-        if (onModelSelect) {
-          onModelSelect(model.id as 'gemini' | 'chatgpt' | 'deepseek' | 'claude');
-        }
-      } else {
-        const storedModel = model as StoredModel;
-        
-        const isVisionModel = storedModel.name.toLowerCase().includes('llava') || 
-                             storedModel.name.toLowerCase().includes('vision') ||
-                             storedModel.name.toLowerCase().includes('minicpm');
-        
-        if (isVisionModel) {
-          showMultimodalDialog(storedModel);
-        } else {
-          if (onModelSelect) {
-            onModelSelect('local', storedModel.path);
-          } else {
-            await loadModel(storedModel.path);
+    const applyInitOverride = (key: keyof InitOverrides, value: number) => {
+      setInitOverrides(prev => ({
+        ...prev,
+        [key]: Math.round(value),
+      }));
+    };
+
+    const resetInitOverrides = () => {
+      setInitOverrides(defaultInit);
+    };
+
+    useEffect(() => {
+      let mounted = true;
+
+      const loadInit = async () => {
+        try {
+          const raw = await AsyncStorage.getItem(initKey);
+          if (!mounted) return;
+          if (raw) {
+            setInitOverrides(parseInit(raw));
+          }
+        } catch {
+        } finally {
+          if (mounted) {
+            setInitHydrated(true);
           }
         }
+      };
+
+      loadInit();
+
+      return () => {
+        mounted = false;
+      };
+    }, []);
+
+    useEffect(() => {
+      if (!initHydrated) {
+        return;
+      }
+
+      const saveInit = async () => {
+        try {
+          await AsyncStorage.setItem(initKey, JSON.stringify(initOverrides));
+        } catch {
+        }
+      };
+
+      saveInit();
+    }, [initOverrides, initHydrated]);
+
+    const executeLocalLoad = async (
+      modelPath: string,
+      projectorPath?: string,
+      mode: 'default' | 'text' | 'vision' = 'default',
+      visionModelName?: string,
+      projectorName?: string,
+    ) => {
+      if (onModelSelect) {
+        if (mode === 'vision' && visionModelName && projectorName) {
+          showDialog(
+            'Multimodal Model Ready',
+            `Loading ${visionModelName} with vision capabilities using ${projectorName}`
+          );
+        } else if (mode === 'text' && visionModelName) {
+          showDialog(
+            'Text-Only Model Ready',
+            `Loading ${visionModelName} in text-only mode (without vision capabilities)`
+          );
+        }
+        onModelSelect('local', modelPath, projectorPath);
+        return;
+      }
+
+      const success = await loadModel(modelPath, projectorPath);
+      if (!success) {
+        return;
+      }
+
+      if (mode === 'vision') {
+        showDialog(
+          'Success',
+          'Vision model loaded successfully! You can now send images and photos.'
+        );
+      } else if (mode === 'text') {
+        showDialog(
+          'Success',
+          'Model loaded successfully in text-only mode.'
+        );
+      }
+    };
+
+    const startLocalLoad = async (
+      modelPath: string,
+      projectorPath?: string,
+      mode: 'default' | 'text' | 'vision' = 'default',
+      visionModelName?: string,
+      projectorName?: string,
+      modelFormat?: string,
+    ) => {
+      const engine = engineService.getEngineForModel(modelPath, modelFormat);
+      if (engine === 'llama') {
+        llamaManager.setInitOverrides(initOverrides);
+      } else {
+        llamaManager.clearInitOverrides();
+      }
+      await executeLocalLoad(modelPath, projectorPath, mode, visionModelName, projectorName);
+    };
+
+    const handleModelSelect = async (model: Model) => {
+      if (modelSelectInFlightRef.current) {
+        return;
+      }
+
+      modelSelectInFlightRef.current = true;
+      setModalVisible(false);
+      try {
+        if (isGenerating) {
+          showDialog(
+            'Model In Use',
+            'Cannot change model while generating a response. Please wait for the current generation to complete or cancel it.'
+          );
+          return;
+        }
+
+        if ('isAppleFoundation' in model) {
+          if (onModelSelect) {
+            onModelSelect('apple-foundation');
+          }
+          return;
+        }
+        if ('isOnline' in model) {
+          if (!enableRemoteModels || !isLoggedIn) {
+            setTimeout(() => {
+              showDialog(
+                'Remote Models Disabled',
+                'Remote models require the "Enable Remote Models" setting to be turned on and you need to be signed in. Would you like to go to Settings to configure this?',
+                { label: 'Go to Settings', onPress: () => { hideDialog(); if (onClose) onClose(); navigation.navigate('MainTabs', { screen: 'SettingsTab' }); } },
+                { label: 'Cancel', onPress: hideDialog }
+              );
+            }, 300);
+            return;
+          }
+
+          if (!onlineModelStatuses[model.id]) {
+            handleApiKeyRequired(model);
+            return;
+          }
+
+          if (onModelSelect) {
+            onModelSelect(model.id as ProviderType);
+          }
+        } else {
+          const storedModel = model as StoredModel;
+          const modelPath = storedModel.isExternal && storedModel.originalPath ? storedModel.originalPath : storedModel.path;
+          const nameLower = (storedModel.name || '').toLowerCase();
+
+          if (selectedModelPath === modelPath && !isModelLoading) {
+            return;
+          }
+
+          const engine = engineService.getEngineForModel(modelPath, storedModel.modelFormat);
+          const enabled = engineService.getEnabled();
+
+          if (!enabled[engine]) {
+            showDialog(
+              'Engine Disabled',
+              `${engine === 'llama' ? 'Llama.cpp' : 'MLX'} is disabled. Enable it in Settings to load this model.`
+            );
+            return;
+          }
+
+          const isVisionModel = nameLower.includes('llava') || 
+                              nameLower.includes('vision') ||
+                              nameLower.includes('minicpm');
+
+          if (isVisionModel) {
+            showMultimodalDialog(storedModel);
+          } else {
+            await startLocalLoad(modelPath, undefined, 'default', undefined, undefined, storedModel.modelFormat);
+          }
+        }
+      } finally {
+        modelSelectInFlightRef.current = false;
       }
     };
 
@@ -287,32 +532,22 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       showDialog(
         'Vision Model Detected',
         `${model.name} appears to be a vision model. Do you want to load it with multimodal capabilities?`,
-        [
-          <Button 
-            key="text-only" 
-            onPress={() => {
-              hideDialog();
-              const storedModel = model as StoredModel;
-              const modelPath = storedModel.isExternal && storedModel.originalPath ? storedModel.originalPath : storedModel.path;
-              if (onModelSelect) {
-                onModelSelect('local', modelPath);
-              } else {
-                loadModel(modelPath);
-              }
-            }}
-          >
-            Text Only
-          </Button>,
-          <Button 
-            key="multimodal" 
-            onPress={() => {
-              hideDialog();
-              promptForProjector(model);
-            }}
-          >
-            With Vision
-          </Button>
-        ]
+        {
+          label: 'With Vision',
+          onPress: () => {
+            hideDialog();
+            promptForProjector(model);
+          }
+        },
+        {
+          label: 'Text Only',
+          onPress: () => {
+            hideDialog();
+            const storedModel = model as StoredModel;
+            const modelPath = storedModel.isExternal && storedModel.originalPath ? storedModel.originalPath : storedModel.path;
+            void startLocalLoad(modelPath, undefined, 'text', model.name, undefined, storedModel.modelFormat);
+          }
+        }
       );
     };
 
@@ -346,24 +581,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       const storedModel = selectedVisionModel as StoredModel;
       const modelPath = storedModel.isExternal && storedModel.originalPath ? storedModel.originalPath : storedModel.path;
       const projectorPath = projectorModel.path;
-
-      if (onModelSelect) {
-        showDialog(
-          'Multimodal Model Ready',
-          `Loading ${selectedVisionModel.name} with vision capabilities using ${projectorModel.name}`,
-          [<Button key="ok" onPress={hideDialog}>OK</Button>]
-        );
-        onModelSelect('local', modelPath, projectorPath);
-      } else {
-        const success = await loadModel(modelPath, projectorPath);
-        if (success) {
-          showDialog(
-            'Success',
-            'Vision model loaded successfully! You can now send images and photos.',
-            [<Button key="ok" onPress={hideDialog}>OK</Button>]
-          );
-        }
-      }
+      await startLocalLoad(modelPath, projectorPath, 'vision', selectedVisionModel.name, projectorModel.name, storedModel.modelFormat);
       setSelectedVisionModel(null);
     };
 
@@ -375,23 +593,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       const storedModel = selectedVisionModel as StoredModel;
       const modelPath = storedModel.isExternal && storedModel.originalPath ? storedModel.originalPath : storedModel.path;
 
-      if (onModelSelect) {
-        showDialog(
-          'Text-Only Model Ready',
-          `Loading ${selectedVisionModel.name} in text-only mode (without vision capabilities)`,
-          [<Button key="ok" onPress={hideDialog}>OK</Button>]
-        );
-        onModelSelect('local', modelPath);
-      } else {
-        const success = await loadModel(modelPath);
-        if (success) {
-          showDialog(
-            'Success',
-            'Model loaded successfully in text-only mode.',
-            [<Button key="ok" onPress={hideDialog}>OK</Button>]
-          );
-        }
-      }
+      await startLocalLoad(modelPath, undefined, 'text', selectedVisionModel.name, undefined, storedModel.modelFormat);
       setSelectedVisionModel(null);
     };
 
@@ -404,8 +606,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       if (!selectedModelPath) {
         showDialog(
           'No Model Loaded',
-          'There is no model currently loaded to unload.',
-          [<Button key="ok" onPress={hideDialog}>OK</Button>]
+          'There is no model currently loaded to unload.'
         );
         return;
       }
@@ -415,33 +616,30 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         ? 'This will stop the current generation. Are you sure you want to unload the model?'
         : 'Are you sure you want to unload the current model?';
 
-      const actions = [
-        <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
-        <Button key="unload" onPress={async () => {
-          hideDialog();
-          try {
-            await unloadModel();
-          } catch (error) {
-            showDialog(
-              'Unload Warning',
-              `Model unloading completed with warnings. The model has been cleared from memory.`,
-              [<Button key="ok" onPress={hideDialog}>OK</Button>]
-            );
+      showDialog(title, message,
+        {
+          label: 'Unload',
+          onPress: async () => {
+            hideDialog();
+            try {
+              await unloadModel();
+            } catch (error) {
+              showDialog(
+                'Unload Warning',
+                `Model unloading completed with warnings. The model has been cleared from memory.`
+              );
+            }
           }
-        }}>
-          Unload
-        </Button>
-      ];
-
-      showDialog(title, message, actions);
+        },
+        { label: 'Cancel', onPress: hideDialog }
+      );
     };
 
     const handleUnloadProjector = () => {
       if (!selectedProjectorPath && !isMultimodalEnabled) {
         showDialog(
           'No Projector Loaded',
-          'There is no projector model currently loaded to unload.',
-          [<Button key="ok" onPress={hideDialog}>OK</Button>]
+          'There is no projector model currently loaded to unload.'
         );
         return;
       }
@@ -451,334 +649,29 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         ? 'This will disable vision capabilities and stop the current generation. Are you sure you want to unload the projector?'
         : 'Are you sure you want to unload the projector model? This will disable vision capabilities.';
 
-      const actions = [
-        <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
-        <Button key="unload" onPress={async () => {
-          hideDialog();
-          try {
-            await unloadProjector();
-          } catch (error) {
-            showDialog(
-              'Unload Warning',
-              `Projector unloading completed with warnings. Vision capabilities have been disabled.`,
-              [<Button key="ok" onPress={hideDialog}>OK</Button>]
-            );
+      showDialog(title, message,
+        {
+          label: 'Unload Projector',
+          onPress: async () => {
+            hideDialog();
+            try {
+              await unloadProjector();
+            } catch (error) {
+              showDialog(
+                'Unload Warning',
+                `Projector unloading completed with warnings. Vision capabilities have been disabled.`
+              );
+            }
           }
-        }}>
-          Unload Projector
-        </Button>
-      ];
-
-      showDialog(title, message, actions);
+        },
+        { label: 'Cancel', onPress: hideDialog }
+      );
     };
 
     const handleApiKeyRequired = (model: OnlineModel) => {
       showDialog(
         'API Key Required',
-        `${model.name} by ${model.provider} requires an API key. Please configure it in Settings.`,
-        [<Button key="ok" onPress={hideDialog}>OK</Button>]
-      );
-    };
-
-    const formatBytes = (bytes: number) => {
-      if (bytes === 0) return '0 B';
-      const k = 1024;
-      const sizes = ['B ', 'KB ', 'MB ', 'GB '];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
-    };
-
-    const getDisplayName = (filename: string) => {
-      return filename.split('.')[0];
-    };
-
-    const getModelNameFromPath = (path: string | null, models: StoredModel[]): string => {
-      if (!path) return 'Select a Model';
-      
-      if (path === 'gemini') return 'Gemini';
-      if (path === 'chatgpt') return 'ChatGPT';
-      if (path === 'deepseek') return 'DeepSeek';
-      if (path === 'claude') return 'Claude';
-      if (path === 'apple-foundation') return 'Apple Foundation';
-      
-      const model = models.find(m => m.path === path);
-      return model ? getDisplayName(model.name) : getDisplayName(path.split('/').pop() || '');
-    };
-
-    const getProjectorNameFromPath = (path: string | null, models: StoredModel[]): string => {
-      if (!path) return '';
-      
-      const model = models.find(m => m.path === path);
-      return model ? getDisplayName(model.name) : getDisplayName(path.split('/').pop() || '');
-    };
-
-    const remoteProviders = new Set<ProviderType>(['gemini', 'chatgpt', 'deepseek', 'claude']);
-
-    const isRemoteProvider = (provider: string | null): boolean => {
-      if (!provider) return false;
-      return remoteProviders.has(provider as ProviderType);
-    };
-
-    const isAppleProvider = (provider: string | null): boolean => provider === 'apple-foundation';
-
-    const getActiveModelIcon = (provider: string | null): keyof typeof MaterialCommunityIcons.glyphMap => {
-      if (!provider) return 'cube-outline';
-      if (isAppleProvider(provider)) return 'apple';
-      if (isRemoteProvider(provider)) return 'cloud';
-      return 'cube';
-    };
-
-    const getConnectionBadgeConfig = (provider: string | null) => {
-      if (isRemoteProvider(provider)) {
-        return {
-          backgroundColor: 'rgba(74, 180, 96, 0.15)',
-          textColor: '#2a8c42',
-          label: 'REMOTE'
-        };
-      }
-      if (isAppleProvider(provider)) {
-        return {
-          backgroundColor: 'rgba(74, 6, 96, 0.1)',
-          textColor: currentTheme === 'dark' ? '#fff' : '#660880',
-          label: 'APPLE'
-        };
-      }
-      return {
-        backgroundColor: 'rgba(74, 6, 96, 0.1)',
-        textColor: currentTheme === 'dark' ? '#fff' : '#660880',
-        label: 'LOCAL'
-      };
-    };
-
-    const renderAppleFoundationItem = ({ item }: { item: AppleFoundationModel }) => {
-      const isSelected = selectedModelPath === item.id;
-
-      return (
-        <TouchableOpacity
-          style={[
-            styles.modelItem,
-            { backgroundColor: themeColors.borderColor },
-            isSelected && styles.selectedModelItem,
-            isGenerating && styles.modelItemDisabled,
-          ]}
-          onPress={() => handleModelSelect(item)}
-          disabled={isGenerating}
-        >
-          <View style={styles.modelIconContainer}>
-            <MaterialCommunityIcons
-              name={isSelected ? 'apple' : 'apple'}
-              size={28}
-              color={isSelected ? (currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme)) : currentTheme === 'dark' ? '#fff' : themeColors.text}
-            />
-          </View>
-          <View style={styles.modelInfo}>
-            <View style={styles.modelNameRow}>
-              <Text
-                style={[
-                  styles.modelName,
-                  { color: currentTheme === 'dark' ? '#fff' : themeColors.text },
-                  isSelected && { color: currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme) },
-                ]}
-              >
-                {item.name}
-              </Text>
-              <View
-                style={[
-                  styles.connectionTypeBadge,
-                  { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(74, 6, 96, 0.1)' },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.connectionTypeText,
-                    { color: currentTheme === 'dark' ? '#fff' : '#4a0660' },
-                  ]}
-                >
-                  LOCAL
-                </Text>
-              </View>
-            </View>
-            <View style={styles.modelMetaInfo}>
-              <View
-                style={[
-                  styles.modelTypeBadge,
-                  {
-                    backgroundColor: isSelected
-                      ? currentTheme === 'dark'
-                        ? 'rgba(255, 255, 255, 0.15)'
-                        : 'rgba(74, 6, 96, 0.1)'
-                      : 'rgba(150, 150, 150, 0.1)',
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.modelTypeText,
-                    {
-                      color: isSelected
-                        ? currentTheme === 'dark'
-                          ? '#fff'
-                          : '#4a0660'
-                        : currentTheme === 'dark'
-                          ? '#fff'
-                          : themeColors.secondaryText,
-                    },
-                  ]}
-                >
-                  {item.provider}
-                </Text>
-              </View>
-            </View>
-          </View>
-          {isSelected && (
-            <View style={styles.selectedIndicator}>
-              <MaterialCommunityIcons
-                name="check-circle"
-                size={24}
-                color={currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme)}
-              />
-            </View>
-          )}
-        </TouchableOpacity>
-      );
-    };
-
-    const renderLocalModelItem = ({ item }: { item: StoredModel }) => (
-      <TouchableOpacity
-        style={[
-          styles.modelItem,
-          { backgroundColor: themeColors.borderColor },
-          selectedModelPath === item.path && styles.selectedModelItem,
-          isGenerating && styles.modelItemDisabled
-        ]}
-        onPress={() => handleModelSelect(item)}
-        disabled={isGenerating}
-      >
-        <View style={styles.modelIconContainer}>
-          <MaterialCommunityIcons 
-            name={selectedModelPath === item.path ? "cube" : "cube-outline"} 
-            size={28} 
-            color={selectedModelPath === item.path ? 
-              currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme) : 
-              currentTheme === 'dark' ? '#fff' : themeColors.text} 
-          />
-        </View>
-        <View style={styles.modelInfo}>
-          <View style={styles.modelNameRow}>
-            <Text style={[
-              styles.modelName, 
-              { color: currentTheme === 'dark' ? '#fff' : themeColors.text },
-              selectedModelPath === item.path && { color: currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme) }
-            ]}>
-              {getDisplayName(item.name)}
-            </Text>
-            <View style={[
-              styles.connectionTypeBadge,
-              { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(74, 6, 96, 0.1)' }
-            ]}>
-              <Text style={[styles.connectionTypeText, { color: currentTheme === 'dark' ? '#fff' : '#4a0660' }]}>
-                LOCAL
-              </Text>
-            </View>
-          </View>
-          <View style={styles.modelMetaInfo}>
-            <Text style={[styles.modelDetails, { color: currentTheme === 'dark' ? '#fff' : themeColors.secondaryText }]}>
-              {formatBytes(item.size)}
-            </Text>
-          </View>
-        </View>
-        {selectedModelPath === item.path && (
-          <View style={styles.selectedIndicator}>
-            <MaterialCommunityIcons 
-              name="check-circle" 
-              size={24}
-              color={currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme)} 
-            />
-          </View>
-        )}
-      </TouchableOpacity>
-    );
-    
-    const renderOnlineModelItem = ({ item }: { item: OnlineModel }) => {
-      const isSelected = selectedModelPath === item.id;
-      const hasApiKey = onlineModelStatuses[item.id];
-      const isRemoteModelsDisabled = !enableRemoteModels || !isLoggedIn;
-
-      return (
-        <TouchableOpacity
-          style={[
-            styles.modelItem,
-            { backgroundColor: themeColors.borderColor },
-            isSelected && styles.selectedModelItem,
-            isGenerating && styles.modelItemDisabled
-          ]}
-          onPress={() => handleModelSelect(item)}
-          disabled={isGenerating}
-        >
-          <View style={styles.modelIconContainer}>
-            <MaterialCommunityIcons 
-              name={isSelected ? "cloud" : "cloud-outline"} 
-              size={28} 
-              color={isSelected || hasApiKey ? 
-                currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme) : 
-                currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} 
-            />
-          </View>
-          <View style={styles.modelInfo}>
-            <View style={styles.modelNameRow}>
-              <Text style={[
-                styles.modelName, 
-                { color: currentTheme === 'dark' ? '#fff' : themeColors.text },
-                isSelected && { color: currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme) }
-              ]}>
-                {item.name}
-              </Text>
-              <View style={[
-                styles.connectionTypeBadge,
-                { backgroundColor: currentTheme === 'dark' ? 'rgba(74, 180, 96, 0.25)' : 'rgba(74, 180, 96, 0.15)' }
-              ]}>
-                <Text style={[styles.connectionTypeText, { color: currentTheme === 'dark' ? '#5FD584' : '#2a8c42' }]}>
-                  REMOTE
-                </Text>
-              </View>
-            </View>
-            <View style={styles.modelMetaInfo}>
-              <View style={[
-                styles.modelTypeBadge,
-                { 
-                  backgroundColor: (isSelected || hasApiKey) ? 
-                    currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(74, 6, 96, 0.1)' : 
-                    'rgba(150, 150, 150, 0.1)' 
-                }
-              ]}>
-                <Text style={[
-                  styles.modelTypeText, 
-                  { 
-                    color: (isSelected || hasApiKey) ? 
-                      currentTheme === 'dark' ? '#fff' : '#4a0660' : 
-                      currentTheme === 'dark' ? '#fff' : themeColors.secondaryText 
-                  }
-                ]}>
-                  {item.provider}
-                </Text>
-              </View>
-              {isRemoteModelsDisabled && (
-                <Text style={[styles.modelApiKeyMissing, { color: currentTheme === 'dark' ? '#FF9494' : '#d32f2f' }]}>
-                  Remote models disabled
-                </Text>
-              )}
-            </View>
-          </View>
-          {isSelected && (
-            <View style={styles.selectedIndicator}>
-              <MaterialCommunityIcons 
-                name="check-circle" 
-                size={24} 
-                color={currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme)} 
-              />
-            </View>
-          )}
-        </TouchableOpacity>
+        `${model.name} by ${model.provider} requires an API key. Please configure it in Models > Remote Models.`
       );
     };
 
@@ -786,114 +679,24 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       setIsLocalModelsExpanded(!isLocalModelsExpanded);
     };
 
-    const renderSectionHeader = ({ section }: { section: SectionData }) => {
-      if (section.title === 'Remote Models') {
-        const hasApiKeys = hasAnyApiKey();
-        return (
-          <TouchableOpacity 
-            onPress={toggleOnlineModelsDropdown}
-            style={[
-              styles.sectionHeader, 
-              { backgroundColor: themeColors.background },
-              styles.modelSectionHeader,
-              styles.onlineModelsHeader,
-              hasApiKeys && styles.onlineModelsHeaderWithKeys,
-              currentTheme === 'dark' && {
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                borderColor: 'rgba(255, 255, 255, 0.2)'
-              }
-            ]}
-          >
-            <View style={styles.sectionHeaderContent}>
-              <Text style={[
-                styles.sectionHeaderText, 
-                { color: currentTheme === 'dark' ? '#fff' : themeColors.secondaryText },
-                currentTheme === 'dark' && { opacity: 0.9 }
-              ]}>
-                {section.title}
-              </Text>
-              <MaterialCommunityIcons 
-                name={isOnlineModelsExpanded ? "chevron-up" : "chevron-down"} 
-                size={24} 
-                color={hasApiKeys ? 
-                  currentTheme === 'dark' ? '#5FD584' : getThemeAwareColor('#2a8c42', currentTheme) : 
-                  currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} 
-              />
-            </View>
-          </TouchableOpacity>
-        );
-      }
-      
-      return (
-        <View
-          style={[
-            styles.sectionHeader,
-            { backgroundColor: themeColors.background },
-            styles.modelSectionHeader,
-            styles.sectionHeaderWithControls,
-            currentTheme === 'dark' && {
-              backgroundColor: 'rgba(255, 255, 255, 0.1)',
-              borderColor: 'rgba(255, 255, 255, 0.2)'
-            }
-          ]}
-        >
-          <TouchableOpacity
-            onPress={toggleLocalModelsDropdown}
-            style={styles.sectionHeaderToggle}
-          >
-            <Text
-              style={[
-                styles.sectionHeaderText,
-                { color: currentTheme === 'dark' ? '#fff' : themeColors.secondaryText },
-                currentTheme === 'dark' && { opacity: 0.9 }
-              ]}
-            >
-              {section.title}
-            </Text>
-            <MaterialCommunityIcons
-              name={isLocalModelsExpanded ? "chevron-up" : "chevron-down"}
-              size={24}
-              color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={refreshStoredModels}
-            style={[
-              styles.sectionRefreshButton,
-              { backgroundColor: themeColors.borderColor }
-            ]}
-            disabled={isRefreshingLocalModels}
-          >
-            {isRefreshingLocalModels ? (
-              <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
-            ) : (
-              <MaterialCommunityIcons
-                name="refresh"
-                size={20}
-                color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText}
-              />
-            )}
-          </TouchableOpacity>
-        </View>
-      );
-    };
-
-    const renderItem = ({ item, section }: { item: Model, section: SectionData }) => {
-      if (section.title === 'Remote Models' && !isOnlineModelsExpanded) {
-        return null;
-      }
-      if (section.title === 'Local Models' && !isLocalModelsExpanded) {
-        return null;
-      }
-      
-      if ('isAppleFoundation' in item) {
-        return renderAppleFoundationItem({ item });
-      }
-      if ('isOnline' in item) {
-        return renderOnlineModelItem({ item });
-      } else {
-        return renderLocalModelItem({ item: item as StoredModel });
-      }
+    const renderContext: RenderContext = {
+      themeColors,
+      currentTheme,
+      selectedModelPath,
+      isGenerating: isGenerating || false,
+      handleModelSelect,
+      expandedGroups,
+      toggleGroup,
+      onlineModelStatuses,
+      enableRemoteModels,
+      isLoggedIn,
+      isOnlineModelsExpanded,
+      toggleOnlineModelsDropdown,
+      hasAnyApiKey,
+      isLocalModelsExpanded,
+      toggleLocalModelsDropdown,
+      refreshStoredModels,
+      isRefreshingLocalModels
     };
 
     useEffect(() => {
@@ -905,6 +708,38 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     useEffect(() => {
       if (modalVisible) {
         refreshAppleFoundationState();
+        setOverlayActive(true);
+        slideAnim.setValue(getScreenH());
+        backdropAnim.setValue(0);
+        Animated.parallel([
+          Animated.timing(backdropAnim, {
+            toValue: 1,
+            duration: 220,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.spring(slideAnim, {
+            toValue: 0,
+            damping: 500,
+            stiffness: 1000,
+            mass: 3,
+            overshootClamping: true,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      } else {
+        backdropAnim.setValue(1);
+        Animated.timing(slideAnim, {
+          toValue: getScreenH(),
+          duration: 160,
+          easing: Easing.in(Easing.quad),
+          useNativeDriver: true,
+        }).start(({ finished }) => {
+          if (finished) {
+            backdropAnim.setValue(0);
+            setOverlayActive(false);
+          }
+        });
       }
     }, [modalVisible]);
 
@@ -915,12 +750,22 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
     useEffect(() => {
       if (preselectedModelPath && models.length > 0) {
+        if (handledPreselectedPathRef.current === preselectedModelPath) {
+          return;
+        }
         const preselectedModel = models.find(model => model.path === preselectedModelPath);
         if (preselectedModel) {
+          handledPreselectedPathRef.current = preselectedModelPath;
           handleModelSelect(preselectedModel);
         }
       }
     }, [preselectedModelPath, models]);
+
+    useEffect(() => {
+      if (!preselectedModelPath) {
+        handledPreselectedPathRef.current = null;
+      }
+    }, [preselectedModelPath]);
 
 
     useEffect(() => {
@@ -932,6 +777,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     useEffect(() => {
       const unsubscribe = onlineModelService.addListener('api-key-updated', () => {
         checkOnlineModelApiKeys();
+        loadCloneModels();
       });
       
       return () => {
@@ -939,7 +785,16 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       };
     }, []);
 
-    const badgeConfig = getConnectionBadgeConfig(selectedModelPath);
+    useEffect(() => {
+      if (!modalVisible || Platform.OS !== 'android') return;
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        handleModalClose();
+        return true;
+      });
+      return () => sub.remove();
+    }, [modalVisible]);
+
+    const badgeConfig = getConnectionBadgeConfig(selectedModelPath, currentTheme);
 
     return (
       <>
@@ -953,8 +808,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             if (isGenerating) {
               showDialog(
                 'Model In Use',
-                'Cannot change model while generating a response. Please wait for the current generation to complete or cancel it.',
-                [<Button key="ok" onPress={hideDialog}>OK</Button>]
+                'Cannot change model while generating a response. Please wait for the current generation to complete or cancel it.'
               );
               return;
             }
@@ -986,7 +840,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                 <Text style={[styles.selectorText, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>
                   {isModelLoading 
                     ? 'Loading...' 
-                    : getModelNameFromPath(selectedModelPath, models)
+                    : getModelNameFromPath(selectedModelPath, models, cloneModels)
                   }
                 </Text>
                 {selectedModelPath && !isModelLoading && (
@@ -1072,14 +926,20 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           </View>
         </TouchableOpacity>
 
-        <Modal
-          visible={modalVisible}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={handleModalClose}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: themeColors.background }]}>
+        {(overlayActive || dialogVisible || projectorSelectorVisible) && (
+        <Portal>
+          {overlayActive && (
+          <View
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+            pointerEvents="auto"
+          >
+            <Animated.View
+              style={[styles.modalOverlay, { opacity: backdropAnim }]}
+              pointerEvents="box-none"
+            >
+              <Animated.View
+                style={[styles.modalContent, { backgroundColor: themeColors.background, transform: [{ translateY: slideAnim }] }]}
+              >
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>
                   Select Model
@@ -1094,13 +954,134 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
               <SectionList
                 sections={sections}
-                keyExtractor={(item) => 'path' in item ? item.path : item.id}
-                renderItem={({ item, section }) => renderItem({ item, section })}
-                renderSectionHeader={renderSectionHeader}
+                keyExtractor={(item) => (
+                  'isMLXGroup' in item && (item as MLXGroup).isMLXGroup
+                    ? (item as MLXGroup).groupKey
+                    : 'path' in item
+                      ? item.path
+                      : item.id
+                )}
+                renderItem={({ item, section }) => renderItem(item, section, renderContext)}
+                renderSectionHeader={({ section }) => renderSectionHeader(section, renderContext)}
                 contentContainerStyle={styles.modelList}
                 stickySectionHeadersEnabled={true}
                 ListHeaderComponent={
                   <View>
+                    <View style={styles.initPanel}>
+                      <TouchableOpacity
+                        style={styles.initPanelToggle}
+                        onPress={() => setShowInitPanel(v => !v)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.initPanelToggleLabel, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>Load Model Settings</Text>
+                        <View style={styles.initPanelActions}>
+                          {showInitPanel && (
+                            <TouchableOpacity
+                              style={styles.initResetIconButton}
+                              onPress={(event) => {
+                                event.stopPropagation();
+                                resetInitOverrides();
+                              }}
+                              activeOpacity={0.7}
+                            >
+                              <MaterialCommunityIcons
+                                name="restore"
+                                size={16}
+                                color={getThemeAwareColor('#4a0660', currentTheme)}
+                              />
+                            </TouchableOpacity>
+                          )}
+                          <MaterialCommunityIcons
+                            name={showInitPanel ? 'chevron-up' : 'chevron-down'}
+                            size={20}
+                            color={currentTheme === 'dark' ? '#fff' : themeColors.text}
+                          />
+                        </View>
+                      </TouchableOpacity>
+
+                      <View style={showInitPanel ? undefined : { height: 0, overflow: 'hidden' }}>
+                          <View style={styles.initSliderItem}>
+                            <View style={styles.initSliderHeader}>
+                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>Context Window</Text>
+                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>{initOverrides.n_ctx}</Text>
+                            </View>
+                            <Slider
+                              minimumValue={512}
+                              maximumValue={16384}
+                              step={256}
+                              value={initOverrides.n_ctx}
+                              onValueChange={(value) => applyInitOverride('n_ctx', value)}
+                              minimumTrackTintColor={getThemeAwareColor('#4a0660', currentTheme)}
+                              thumbTintColor={getThemeAwareColor('#4a0660', currentTheme)}
+                            />
+                          </View>
+
+                          <View style={styles.initSliderItem}>
+                            <View style={styles.initSliderHeader}>
+                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>Batch Size</Text>
+                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>{initOverrides.n_batch}</Text>
+                            </View>
+                            <Slider
+                              minimumValue={16}
+                              maximumValue={2048}
+                              step={16}
+                              value={initOverrides.n_batch}
+                              onValueChange={(value) => applyInitOverride('n_batch', value)}
+                              minimumTrackTintColor={getThemeAwareColor('#4a0660', currentTheme)}
+                              thumbTintColor={getThemeAwareColor('#4a0660', currentTheme)}
+                            />
+                          </View>
+
+                          <View style={styles.initSliderItem}>
+                            <View style={styles.initSliderHeader}>
+                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>Parallel Sequences</Text>
+                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>{initOverrides.n_parallel}</Text>
+                            </View>
+                            <Slider
+                              minimumValue={1}
+                              maximumValue={8}
+                              step={1}
+                              value={initOverrides.n_parallel}
+                              onValueChange={(value) => applyInitOverride('n_parallel', value)}
+                              minimumTrackTintColor={getThemeAwareColor('#4a0660', currentTheme)}
+                              thumbTintColor={getThemeAwareColor('#4a0660', currentTheme)}
+                            />
+                          </View>
+
+                          <View style={styles.initSliderItem}>
+                            <View style={styles.initSliderHeader}>
+                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>CPU Threads</Text>
+                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>{initOverrides.n_threads}</Text>
+                            </View>
+                            <Slider
+                              minimumValue={1}
+                              maximumValue={16}
+                              step={1}
+                              value={initOverrides.n_threads}
+                              onValueChange={(value) => applyInitOverride('n_threads', value)}
+                              minimumTrackTintColor={getThemeAwareColor('#4a0660', currentTheme)}
+                              thumbTintColor={getThemeAwareColor('#4a0660', currentTheme)}
+                            />
+                          </View>
+
+                          <View style={styles.initSliderItem}>
+                            <View style={styles.initSliderHeader}>
+                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>GPU Offload Layers</Text>
+                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>{initOverrides.n_gpu_layers}</Text>
+                            </View>
+                            <Slider
+                              minimumValue={0}
+                              maximumValue={200}
+                              step={1}
+                              value={initOverrides.n_gpu_layers}
+                              onValueChange={(value) => applyInitOverride('n_gpu_layers', value)}
+                              minimumTrackTintColor={getThemeAwareColor('#4a0660', currentTheme)}
+                              thumbTintColor={getThemeAwareColor('#4a0660', currentTheme)}
+                            />
+                          </View>
+                      </View>
+                    </View>
+
                     {isLoadingLocalModels ? (
                       <View style={styles.emptyContainer}>
                         <ActivityIndicator size="large" color={getThemeAwareColor('#4a0660', currentTheme)} />
@@ -1113,6 +1094,18 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                         <MaterialCommunityIcons name="cube-outline" size={48} color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} />
                         <Text style={[styles.emptyText, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>
                           No local models found. Download from Models tab.
+                        </Text>
+                      </View>
+                    ) : sections[0]?.data?.length === 0 ? (
+                      <View style={styles.emptyContainer}>
+                        <MaterialCommunityIcons 
+                          name="cube-outline" 
+                          size={48} 
+                          color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} 
+                        />
+                        <Text style={[styles.emptyText, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>
+                          No local models found.{'\n'}
+                          Download GGUF or MLX models from the Models tab.
                         </Text>
                       </View>
                     ) : null}
@@ -1129,358 +1122,91 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                   ) : null
                 }
               />
-            </View>
+              </Animated.View>
+            </Animated.View>
           </View>
-        </Modal>
+          )}
 
-        <Portal>
-          <Dialog visible={dialogVisible} onDismiss={hideDialog}>
-            <Dialog.Title>{dialogTitle}</Dialog.Title>
-            <Dialog.Content>
-              <Text variant="bodyMedium">{dialogMessage}</Text>
-            </Dialog.Content>
-            <Dialog.Actions>
-              {dialogActions}
-            </Dialog.Actions>
-          </Dialog>
+          {dialogVisible && (
+          <Dialog
+            visible={dialogVisible}
+            onDismiss={hideDialog}
+            title={dialogTitle}
+            description={dialogMessage}
+            primaryButtonText={dialogPrimaryText}
+            onPrimaryPress={dialogPrimaryPress}
+            secondaryButtonText={dialogSecondaryText}
+            onSecondaryPress={dialogSecondaryPress}
+          />
+          )}
 
-          <Dialog visible={projectorSelectorVisible} onDismiss={handleProjectorSelectorClose}>
-            <Dialog.Title>Select Multimodal Projector</Dialog.Title>
-            <Dialog.Content>
-              <Text style={{ marginBottom: 16, color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>
-                Choose a projector (mmproj) model to enable multimodal capabilities:
-              </Text>
-              {projectorModels.length === 0 ? (
-                <View style={{ paddingVertical: 20, alignItems: 'center' }}>
-                  <MaterialCommunityIcons 
-                    name="cube-outline" 
-                    size={48} 
-                    color={currentTheme === 'dark' ? '#666' : '#ccc'} 
+          {projectorSelectorVisible && (
+          <Dialog
+            visible={projectorSelectorVisible}
+            onDismiss={handleProjectorSelectorClose}
+            title="Select Multimodal Projector"
+            primaryButtonText="Skip"
+            onPrimaryPress={handleProjectorSkip}
+            secondaryButtonText="Cancel"
+            onSecondaryPress={handleProjectorSelectorClose}
+          >
+            <Text style={{ marginBottom: 16, color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>
+              Choose a projector (mmproj) model to enable multimodal capabilities:
+            </Text>
+            {projectorModels.length === 0 ? (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <MaterialCommunityIcons 
+                  name="cube-outline" 
+                  size={48} 
+                  color={currentTheme === 'dark' ? '#666' : '#ccc'} 
+                />
+                <Text style={{ 
+                  marginTop: 12, 
+                  textAlign: 'center',
+                  color: currentTheme === 'dark' ? '#ccc' : '#666' 
+                }}>
+                  No projector models found in your stored models.{'\n'}
+                </Text>
+              </View>
+            ) : (
+              projectorModels.map((model) => (
+                <TouchableOpacity
+                  key={model.path}
+                  style={[
+                    styles.projectorModelItem,
+                    { backgroundColor: currentTheme === 'dark' ? '#2a2a2a' : '#f1f1f1' }
+                  ]}
+                  onPress={() => handleProjectorSelect(model)}
+                >
+                  <MaterialCommunityIcons
+                    name="cube-outline"
+                    size={20}
+                    color={currentTheme === 'dark' ? '#fff' : '#000'}
                   />
-                  <Text style={{ 
-                    marginTop: 12, 
-                    textAlign: 'center',
-                    color: currentTheme === 'dark' ? '#ccc' : '#666' 
-                  }}>
-                    No projector models found in your stored models.{'\n'}
-                  </Text>
-                </View>
-              ) : (
-                projectorModels.map((model) => (
-                  <TouchableOpacity
-                    key={model.path}
-                    style={[
-                      styles.projectorModelItem,
-                      { backgroundColor: currentTheme === 'dark' ? '#2a2a2a' : '#f1f1f1' }
-                    ]}
-                    onPress={() => handleProjectorSelect(model)}
-                  >
-                    <MaterialCommunityIcons
-                      name="cube-outline"
-                      size={20}
-                      color={currentTheme === 'dark' ? '#fff' : '#000'}
-                    />
-                    <View style={styles.projectorModelInfo}>
-                      <Text style={[
-                        styles.projectorModelName,
-                        { color: currentTheme === 'dark' ? '#fff' : '#000' }
-                      ]}>
-                        {model.name}
-                      </Text>
-                      <Text style={[
-                        styles.projectorModelSize,
-                        { color: currentTheme === 'dark' ? '#ccc' : '#666' }
-                      ]}>
-                        {(model.size / (1024 * 1024)).toFixed(1)} MB
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))
-              )}
-            </Dialog.Content>
-            <Dialog.Actions>
-              <Button onPress={handleProjectorSkip}>Skip</Button>
-              <Button onPress={handleProjectorSelectorClose}>Cancel</Button>
-            </Dialog.Actions>
+                  <View style={styles.projectorModelInfo}>
+                    <Text style={[
+                      styles.projectorModelName,
+                      { color: currentTheme === 'dark' ? '#fff' : '#000' }
+                    ]}>
+                      {model.name}
+                    </Text>
+                    <Text style={[
+                      styles.projectorModelSize,
+                      { color: currentTheme === 'dark' ? '#ccc' : '#666' }
+                    ]}>
+                      {(model.size / (1024 * 1024)).toFixed(1)} MB
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
           </Dialog>
+          )}
         </Portal>
+        )}
       </>
     );
   }
 );
 
 export default ModelSelector;
-
-const styles = StyleSheet.create({
-  selector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderRadius: 12,
-    
-  },
-  selectorContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  modelIconWrapper: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(74, 6, 96, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  selectorLabel: {
-    fontSize: 12,
-    marginBottom: 2,
-  },
-  selectorTextContainer: {
-    flex: 1,
-  },
-  selectorText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  selectorActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  unloadButton: {
-    padding: 4,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-  },
-  closeButton: {
-    padding: 8,
-  },
-  modelList: {
-    paddingBottom: 20,
-    paddingHorizontal: 4,
-  },
-  modelItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 8,
-    marginHorizontal: 4,
-  },
-  selectedModelItem: {
-    backgroundColor: 'rgba(74, 6, 96, 0.1)',
-  },
-  modelIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(74, 6, 96, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  modelInfo: {
-    flex: 1,
-  },
-  modelName: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  selectedModelText: {
-    color: '#4a0660',
-    fontWeight: '600',
-  },
-  modelMetaInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  modelDetails: {
-    fontSize: 14,
-  },
-  modelTypeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-    backgroundColor: 'rgba(74, 6, 96, 0.1)',
-  },
-  modelTypeText: {
-    fontSize: 12,
-    color: '#4a0660',
-    fontWeight: '500',
-  },
-  selectedIndicator: {
-    marginLeft: 12,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-    gap: 16,
-    marginTop: 24,
-    marginBottom: 16,
-    marginHorizontal: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(150, 150, 150, 0.1)',
-    borderRadius: 8,
-    backgroundColor: 'rgba(150, 150, 150, 0.05)',
-  },
-  emptyText: {
-    textAlign: 'center',
-    fontSize: 16,
-    lineHeight: 24,
-    maxWidth: 300,
-    fontWeight: '500',
-  },
-  selectorDisabled: {
-    opacity: 0.6,
-  },
-  modelItemDisabled: {
-    opacity: 0.6,
-  },
-  unloadButtonActive: {
-    backgroundColor: 'rgba(211, 47, 47, 0.1)',
-    borderRadius: 12,
-    padding: 4,
-  },
-  sectionHeader: {
-    padding: 12,
-    paddingHorizontal: 16,
-    marginBottom: 8,
-  },
-  sectionHeaderContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
-  },
-  sectionHeaderWithControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  sectionHeaderToggle: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  sectionRefreshButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 12,
-  },
-  sectionHeaderText: {
-    fontSize: 14,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  modelSectionHeader: {
-    backgroundColor: 'rgba(74, 6, 96, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(74, 6, 96, 0.1)',
-    borderRadius: 8,
-    marginHorizontal: 4,
-  },
-  onlineModelsHeader: {
-    marginTop: 16,
-  },
-  modelApiKeyMissing: {
-    fontSize: 12,
-    fontStyle: 'italic',
-    marginLeft: 8,
-  },
-  modelNameContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  connectionTypeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-    backgroundColor: 'rgba(74, 6, 96, 0.1)',
-  },
-  connectionTypeText: {
-    fontSize: 10,
-    color: '#4a0660',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  modelNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  onlineModelsHeaderWithKeys: {
-    borderColor: 'rgba(74, 180, 96, 0.3)',
-    backgroundColor: 'rgba(74, 180, 96, 0.05)',
-  },
-  projectorModelItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    marginVertical: 4,
-    borderRadius: 8,
-  },
-  projectorModelInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  projectorModelName: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  projectorModelSize: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  projectorLabel: {
-    fontSize: 10,
-    marginTop: 8,
-    marginBottom: 2,
-    textTransform: 'uppercase',
-    fontWeight: '600',
-    letterSpacing: 0.5,
-  },
-  projectorNameContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  projectorText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  projectorUnloadButton: {
-    backgroundColor: 'rgba(95, 213, 132, 0.1)',
-    borderRadius: 12,
-  },
-}); 

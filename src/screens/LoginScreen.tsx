@@ -46,6 +46,24 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
   const redirectAfterLogin = route.params?.redirectTo || 'MainTabs';
   const redirectParams = route.params?.redirectParams || { screen: 'HomeTab' };
 
+  const navigateAfterAuth = () => {
+    if (redirectAfterLogin === 'MainTabs') {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'MainTabs', params: redirectParams as any }],
+      });
+      return;
+    }
+
+    navigation.reset({
+      index: 1,
+      routes: [
+        { name: 'MainTabs', params: { screen: 'HomeTab' } as any },
+        { name: redirectAfterLogin as any, params: redirectParams as any },
+      ],
+    });
+  };
+
   const navigateToRegister = () => {
     navigation.navigate('Register', {
       redirectTo: route.params?.redirectTo,
@@ -96,15 +114,8 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
       
       if (result.success) {
         await checkLoginStatus();
-        
-        navigation.reset({
-          index: 0,
-          routes: [
-            redirectAfterLogin === 'MainTabs' 
-              ? { name: 'MainTabs', params: redirectParams as any }
-              : { name: redirectAfterLogin as any }
-          ],
-        });
+
+        navigateAfterAuth();
       } else {
         setError(result.error || 'Login failed. Please try again.');
       }
@@ -124,15 +135,8 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
       
       if (result.success) {
         await checkLoginStatus();
-        
-        navigation.reset({
-          index: 0,
-          routes: [
-            redirectAfterLogin === 'MainTabs' 
-              ? { name: 'MainTabs', params: redirectParams as any }
-              : { name: redirectAfterLogin as any }
-          ],
-        });
+
+        navigateAfterAuth();
       } else {
         setError(result.error || 'Google sign-in failed. Please try again.');
       }
@@ -156,14 +160,7 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
       if (result.success) {
         await checkLoginStatus();
 
-        navigation.reset({
-          index: 0,
-          routes: [
-            redirectAfterLogin === 'MainTabs' 
-              ? { name: 'MainTabs', params: redirectParams as any }
-              : { name: redirectAfterLogin as any }
-          ],
-        });
+        navigateAfterAuth();
       } else {
         setError(result.error || 'Apple sign-in failed. Please try again.');
       }

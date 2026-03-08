@@ -1,6 +1,7 @@
 import { ChatMessage } from '../utils/ChatManager';
 import { llamaManager } from '../utils/LlamaManager';
-import { onlineModelService } from './OnlineModelService';
+import { engineService } from './inference-engine-service';
+import { onlineModelService, OnlineModelService } from './OnlineModelService';
 import chatManager from '../utils/ChatManager';
 import { generateRandomId } from '../utils/homeScreenUtils';
 import { appleFoundationService } from './AppleFoundationService';
@@ -17,7 +18,7 @@ interface RegenerationCallbacks {
   saveMessagesImmediate: (messages: ChatMessage[]) => Promise<void>;
   saveMessages: (messages: ChatMessage[]) => void;
   saveMessagesDebounced: { cancel: () => void };
-  handleApiError: (error: unknown, provider: 'Gemini' | 'OpenAI' | 'DeepSeek' | 'Claude') => void;
+  handleApiError: (error: unknown, provider: 'Gemini' | 'OpenAI' | 'Claude') => void;
 }
 
 export class RegenerationService {
@@ -36,7 +37,7 @@ export class RegenerationService {
   ): Promise<void> {
     if (messages.length < 2) return;
     
-    const hasLocalModel = !!llamaManager.getModelPath();
+    const hasLocalModel = !!engineService.getActiveModelPath();
 
     let hasValidModel = false;
     let validProvider = activeProvider;
@@ -82,11 +83,17 @@ export class RegenerationService {
     
     this.callbacks.setMessages(newMessages);
     await this.callbacks.saveMessagesImmediate(newMessages);
+
+    const responderModelName = await this.resolveResponderModelName(validProvider);
+    if (responderModelName) {
+      console.log('resp_model', responderModelName);
+    }
     
     const assistantMessage: ChatMessage = {
       id: generateRandomId(),
       content: '',
       role: 'assistant',
+      modelName: responderModelName,
       stats: {
         duration: 0,
         tokens: 0,
@@ -113,12 +120,12 @@ export class RegenerationService {
     let firstTokenTime: number | null = null;
     
     try {
-      const isOnlineModel = validProvider === 'gemini' || validProvider === 'chatgpt' || validProvider === 'deepseek' || validProvider === 'claude';
+      const isOnlineModel = !!validProvider && ['gemini','chatgpt','claude'].includes(OnlineModelService.getBaseProvider(validProvider));
       const isAppleFoundation = validProvider === 'apple-foundation';
 
       if (isOnlineModel) {
         await this.processOnlineRegeneration(
-          validProvider as 'gemini' | 'chatgpt' | 'deepseek' | 'claude',
+          validProvider,
           newMessages,
           settings,
           assistantMessage,
@@ -165,7 +172,7 @@ export class RegenerationService {
   }
 
   private async processOnlineRegeneration(
-    validProvider: 'gemini' | 'chatgpt' | 'deepseek' | 'claude',
+    validProvider: string,
     newMessages: ChatMessage[],
     settings: any,
     assistantMessage: ChatMessage,
@@ -239,39 +246,15 @@ export class RegenerationService {
     };
 
     try {
-      switch (validProvider) {
-        case 'gemini':
-          await onlineModelService.sendMessageToGemini(messageParams, apiParams, streamCallback);
-          break;
-        case 'chatgpt':
-          await onlineModelService.sendMessageToOpenAI(messageParams, apiParams, streamCallback);
-          break;
-        case 'deepseek':
-          await onlineModelService.sendMessageToDeepSeek(messageParams, apiParams, streamCallback);
-          break;
-        case 'claude':
-          await onlineModelService.sendMessageToClaude(messageParams, apiParams, streamCallback);
-          break;
-        default:
-          const finalMessage: ChatMessage = {
-            ...assistantMessage,
-            content: `This model provider (${validProvider}) is not yet implemented.`,
-            stats: { duration: 0, tokens: 0 }
-          };
-          
-          const finalMessages = [...newMessages, finalMessage];
-          this.callbacks.setMessages(finalMessages);
-          this.callbacks.saveMessages(finalMessages);
-          return;
-      }
-      
+      await onlineModelService.sendMessage(validProvider, messageParams, apiParams, streamCallback);
+
       if (!this.cancelGenerationRef.current) {
         let finalAvgTokenTime = undefined;
         if (firstTokenTime !== null && tokenCount > 0) {
           const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
           finalAvgTokenTime = timeAfterFirstToken / tokenCount;
         }
-        
+
         const finalMessage: ChatMessage = {
           ...assistantMessage,
           content: fullResponse,
@@ -282,7 +265,7 @@ export class RegenerationService {
             avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined
           }
         };
-        
+
         const finalMessages = [...newMessages, finalMessage];
         this.callbacks.setMessages(finalMessages);
         await this.callbacks.saveMessagesImmediate(finalMessages);
@@ -435,12 +418,13 @@ export class RegenerationService {
     isThinking: boolean,
     firstTokenTime: number | null
   ): Promise<void> {
-    await llamaManager.generateResponse(
-      [...newMessages].map(msg => ({ role: msg.role, content: msg.content })),
-      (token) => {
-        if (this.cancelGenerationRef.current) {
-          return false;
-        }
+    await engineService.mgr().gen(
+      [...newMessages].map(msg => ({ role: msg.role, content: msg.content })) as any,
+      {
+        onToken: (token) => {
+          if (this.cancelGenerationRef.current) {
+            return false;
+          }
         
         if (token.includes('<think>')) {
           isThinking = true;
@@ -504,8 +488,9 @@ export class RegenerationService {
         }
         
         return !this.cancelGenerationRef.current;
-      },
-      settings
+        },
+        settings
+      }
     );
     
     if (!this.cancelGenerationRef.current) {
@@ -518,6 +503,7 @@ export class RegenerationService {
       const finalMessage: ChatMessage = {
         id: assistantMessage.id,
         role: assistantMessage.role,
+        modelName: assistantMessage.modelName,
         content: fullResponse,
         stats: {
           duration: (Date.now() - startTime) / 1000,
@@ -534,13 +520,44 @@ export class RegenerationService {
     }
   }
 
-  private getProviderDisplayName(provider: string): 'Gemini' | 'OpenAI' | 'DeepSeek' | 'Claude' {
+  private getProviderDisplayName(provider: string): 'Gemini' | 'OpenAI' | 'Claude' {
     switch (provider) {
       case 'gemini': return 'Gemini';
       case 'chatgpt': return 'OpenAI';
-      case 'deepseek': return 'DeepSeek';
       case 'claude': return 'Claude';
       default: return 'OpenAI';
     }
+  }
+
+  private async resolveResponderModelName(activeProvider: ProviderType | null): Promise<string | undefined> {
+    if (!activeProvider || activeProvider === 'local') {
+      const activePath = engineService.getActiveModelPath();
+      if (!activePath) {
+        return undefined;
+      }
+      return this.getLocalModelName(activePath);
+    }
+
+    if (activeProvider === 'apple-foundation') {
+      return 'Apple Foundation';
+    }
+
+    const configured = await onlineModelService.getModelName(activeProvider);
+    if (configured && configured.trim()) {
+      return configured.trim();
+    }
+
+    const fallback = onlineModelService.getDefaultModelName(activeProvider);
+    if (fallback && fallback.trim()) {
+      return fallback.trim();
+    }
+
+    const base = OnlineModelService.getBaseProvider(activeProvider);
+    return base || undefined;
+  }
+
+  private getLocalModelName(path: string): string {
+    const file = path.split('/').pop() || path;
+    return file.replace(/\.(gguf|mlx)$/i, '');
   }
 }

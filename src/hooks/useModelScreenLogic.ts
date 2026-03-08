@@ -1,6 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Animated, AppState, AppStateStatus, Platform } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as BackgroundTask from 'expo-background-task';
 import * as TaskManager from 'expo-task-manager';
@@ -15,9 +14,15 @@ import { modelSettingsService } from '../services/ModelSettingsService';
 import { getUserFromSecureStorage, logoutUser } from '../services/FirebaseService';
 import { getActiveDownloadsCount } from '../utils/ModelUtils';
 import { StoredModel } from '../services/ModelDownloaderTypes';
+import { ShowDialogFn } from './useDialog';
 
 const BACKGROUND_DOWNLOAD_TASK = 'background-download-task';
 const isAndroid = Platform.OS === 'android';
+
+type ModelRouteParams = {
+  autoEnableRemoteModels?: boolean;
+  openRemoteTab?: boolean;
+};
 
 TaskManager.defineTask(BACKGROUND_DOWNLOAD_TASK, async ({ data, error }) => {
   if (error) {
@@ -39,9 +44,9 @@ const registerBackgroundTask = async () => {
   }
 };
 
-export const useModelScreenLogic = (navigation: any) => {
-  const { enableRemoteModels, isLoggedIn, checkLoginStatus } = useRemoteModel();
-  const { storedModels, isLoading: isLoadingStoredModels, isRefreshing: isRefreshingStoredModels, refreshStoredModels } = useStoredModels();
+export const useModelScreenLogic = (navigation: any, routeParams?: ModelRouteParams) => {
+  const { enableRemoteModels, isLoggedIn, checkLoginStatus, toggleRemoteModels } = useRemoteModel();
+  const { storedModels, isLoading: isLoadingStoredModels, isRefreshing: isRefreshingStoredModels, refreshStoredModels, rescanStoredModels } = useStoredModels();
   const { downloadProgress, setDownloadProgress } = useDownloads();
   
   const [activeTab, setActiveTab] = useState<'stored' | 'downloadable' | 'remote'>('stored');
@@ -53,12 +58,8 @@ export const useModelScreenLogic = (navigation: any) => {
   const [username, setUsername] = useState<string | null>(null);
   
   const buttonScale = useRef(new Animated.Value(1)).current;
-
-  useFocusEffect(
-    useCallback(() => {
-      refreshStoredModels();
-    }, [refreshStoredModels])
-  );
+  const prevActiveCount = useRef(0);
+  const applyingRemoteIntent = useRef(false);
 
   useEffect(() => {
     checkLoginStatusAndUpdateUsername();
@@ -81,7 +82,7 @@ export const useModelScreenLogic = (navigation: any) => {
     }
   };
 
-  const handleLogout = async (showDialog: (title: string, message: string, actions: any[]) => void, hideDialog: () => void) => {
+  const handleLogout = async (showDialog: ShowDialogFn, hideDialog: () => void) => {
     try {
       const result = await logoutUser();
       await AsyncStorage.removeItem('user');
@@ -93,12 +94,12 @@ export const useModelScreenLogic = (navigation: any) => {
       }
       
       if (result.success) {
-        showDialog('Logged Out', 'You have been successfully logged out.', []);
+        showDialog('Logged Out', 'You have been successfully logged out.');
       } else {
-        showDialog('Logout Issue', result.error || 'There was an issue logging out. Please try again.', []);
+        showDialog('Logout Issue', result.error || 'There was an issue logging out. Please try again.');
       }
     } catch (error) {
-      showDialog('Error', 'Failed to log out. Please try again.', []);
+      showDialog('Error', 'Failed to log out. Please try again.');
     }
   };
 
@@ -126,7 +127,7 @@ export const useModelScreenLogic = (navigation: any) => {
     }
   };
 
-  const proceedWithModelImport = async (showDialog: (title: string, message: string, actions: any[]) => void) => {
+  const proceedWithModelImport = async (showDialog: ShowDialogFn) => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: '*/*',
@@ -139,9 +140,11 @@ export const useModelScreenLogic = (navigation: any) => {
 
       const file = result.assets[0];
       const fileName = file.name.toLowerCase();
+      const isGguf = fileName.endsWith('.gguf');
+      const isSafe = fileName.endsWith('.safetensors');
 
-      if (!fileName.endsWith('.gguf')) {
-        showDialog('Invalid File', 'Please select a valid GGUF model file (with .gguf extension)', []);
+      if (!isGguf && !isSafe) {
+        showDialog('Invalid File', 'Please select a GGUF or safetensors model file');
         return;
       }
 
@@ -152,16 +155,16 @@ export const useModelScreenLogic = (navigation: any) => {
         await modelDownloader.linkExternalModel(file.uri, file.name);
         setIsLoading(false);
         setImportingModelName(null);
-        showDialog('Model Imported', 'The model has been successfully imported to the app.', []);
+        showDialog('Model Imported', 'The model has been successfully imported to the app.');
         await refreshStoredModels();
       } catch (error) {
         setIsLoading(false);
         setImportingModelName(null);
-        showDialog('Error', `Failed to import the model: ${error instanceof Error ? error.message : 'Unknown error'}`, []);
+        showDialog('Error', `Failed to import the model: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     } catch (error) {
       setIsLoading(false);
-      showDialog('Error', 'Could not open the file picker. Please ensure the app has storage permissions.', []);
+      showDialog('Error', 'Could not open the file picker. Please ensure the app has storage permissions.');
     }
   };
 
@@ -180,7 +183,7 @@ export const useModelScreenLogic = (navigation: any) => {
     }));
   };
 
-  const cancelDownload = async (modelName: string, showDialog: (title: string, message: string, actions: any[]) => void) => {
+  const cancelDownload = async (modelName: string, showDialog: ShowDialogFn) => {
     try {
       const downloadInfo = downloadProgress[modelName];
       if (!downloadInfo) {
@@ -194,48 +197,41 @@ export const useModelScreenLogic = (navigation: any) => {
         delete newProgress[modelName];
         return newProgress;
       });
-      
-      try {
-        const savedStates = await AsyncStorage.getItem('active_downloads');
-        if (savedStates) {
-          const parsedStates = JSON.parse(savedStates);
-          if (parsedStates[modelName]) {
-            delete parsedStates[modelName];
-            if (Object.keys(parsedStates).length > 0) {
-              await AsyncStorage.setItem('active_downloads', JSON.stringify(parsedStates));
-            } else {
-              await AsyncStorage.removeItem('active_downloads');
-            }
-          }
-        }
-      } catch (storageError) {
-      }
 
       await refreshStoredModels();
     } catch (error) {
-      showDialog('Error', 'Failed to cancel download', []);
+      showDialog('Error', 'Failed to cancel download');
     }
   };
 
-  const handleDelete = async (model: StoredModel, showDialog: (title: string, message: string, actions: any[]) => void, hideDialog: () => void) => {
+  const handleDelete = async (model: StoredModel, showDialog: ShowDialogFn, hideDialog: () => void) => {
     showDialog(
       'Delete Model',
-      `Are you sure you want to delete ${model.name}?`,
-      []
+      `Are you sure you want to delete ${model.name}?`
     );
   };
 
-  const confirmDelete = async (model: StoredModel, showDialog: (title: string, message: string, actions: any[]) => void) => {
+  const confirmDelete = async (model: StoredModel, showDialog: ShowDialogFn) => {
     try {
-      await modelDownloader.deleteModel(model.path);
-      await modelSettingsService.deleteModelSettings(model.path);
+      const modelWithFiles = model as StoredModel & { mlxFiles?: StoredModel[] };
+      
+      if (modelWithFiles.mlxFiles && modelWithFiles.mlxFiles.length > 0) {
+        for (const file of modelWithFiles.mlxFiles) {
+          await modelDownloader.deleteModel(file.path);
+          await modelSettingsService.deleteModelSettings(file.path);
+        }
+      } else {
+        await modelDownloader.deleteModel(model.path);
+        await modelSettingsService.deleteModelSettings(model.path);
+      }
+      
       await refreshStoredModels();
     } catch (error) {
-      showDialog('Error', 'Failed to delete model', []);
+      showDialog('Error', 'Failed to delete model');
     }
   };
 
-  const handleExport = async (modelPath: string, modelName: string, showDialog: (title: string, message: string, actions: any[]) => void) => {
+  const handleExport = async (modelPath: string, modelName: string, showDialog: ShowDialogFn) => {
     try {
       setIsLoading(true);
       setIsExporting(true);
@@ -245,7 +241,7 @@ export const useModelScreenLogic = (navigation: any) => {
     } catch (error) {
       setIsLoading(false);
       setIsExporting(false);
-      showDialog('Share Failed', `Failed to share ${modelName}: ${error instanceof Error ? error.message : 'Unknown error'}`, []);
+      showDialog('Share Failed', `Failed to share ${modelName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -253,13 +249,12 @@ export const useModelScreenLogic = (navigation: any) => {
     navigation.navigate('ModelSettings', { modelName, modelPath });
   };
 
-  const handleTabPress = (tab: 'stored' | 'downloadable' | 'remote', showDialog: (title: string, message: string, actions: any[]) => void, hideDialog: () => void) => {
+  const handleTabPress = (tab: 'stored' | 'downloadable' | 'remote', showDialog: ShowDialogFn, hideDialog: () => void) => {
     if (tab === 'remote') {
       if (!isLoggedIn || !enableRemoteModels) {
         showDialog(
           'Remote Models Disabled',
-          'Remote models require the "Enable Remote Models" setting to be turned on and you need to be signed in. Would you like to go to Settings to configure this?',
-          []
+          'Remote models require the "Enable Remote Models" setting to be turned on and you need to be signed in. Would you like to go to Settings to configure this?'
         );
         return;
       }
@@ -272,6 +267,50 @@ export const useModelScreenLogic = (navigation: any) => {
       setActiveTab('stored');
     }
   }, [enableRemoteModels, activeTab]);
+
+  useEffect(() => {
+    if (applyingRemoteIntent.current) {
+      return;
+    }
+
+    const shouldAutoEnableRemote = routeParams?.autoEnableRemoteModels === true;
+    const shouldOpenRemoteTab = routeParams?.openRemoteTab === true;
+
+    if (!shouldAutoEnableRemote && !shouldOpenRemoteTab) {
+      return;
+    }
+
+    if (!isLoggedIn) {
+      return;
+    }
+
+    applyingRemoteIntent.current = true;
+
+    const applyIntent = async () => {
+      try {
+        let canOpenRemoteTab = enableRemoteModels;
+
+        if (shouldAutoEnableRemote && !enableRemoteModels) {
+          const result = await toggleRemoteModels();
+          canOpenRemoteTab = result.success || enableRemoteModels;
+        }
+
+        if (shouldOpenRemoteTab && canOpenRemoteTab) {
+          setActiveTab('remote');
+        }
+      } finally {
+        if (typeof navigation.setParams === 'function') {
+          navigation.setParams({
+            autoEnableRemoteModels: undefined,
+            openRemoteTab: undefined,
+          });
+        }
+        applyingRemoteIntent.current = false;
+      }
+    };
+
+    applyIntent();
+  }, [routeParams, isLoggedIn, enableRemoteModels, toggleRemoteModels]);
 
   useEffect(() => {
     const handleProgress = async ({ modelName, ...progress }: any) => {
@@ -339,12 +378,13 @@ export const useModelScreenLogic = (navigation: any) => {
 
   useEffect(() => {
     const activeCount = getActiveDownloadsCount(downloadProgress);
-    if (activeCount > 0) {
+    if (activeCount !== prevActiveCount.current && activeCount > 0) {
       Animated.sequence([
         Animated.timing(buttonScale, { toValue: 1.2, duration: 200, useNativeDriver: true }),
         Animated.timing(buttonScale, { toValue: 1, duration: 200, useNativeDriver: true }),
       ]).start();
     }
+    prevActiveCount.current = activeCount;
   }, [downloadProgress]);
 
   useEffect(() => {
@@ -363,6 +403,16 @@ export const useModelScreenLogic = (navigation: any) => {
     };
   }, [isExporting]);
 
+  useEffect(() => {
+    const handleModelsChanged = () => {
+      rescanStoredModels();
+    };
+    modelDownloader.on('modelsChanged', handleModelsChanged);
+    return () => {
+      modelDownloader.off('modelsChanged', handleModelsChanged);
+    };
+  }, []);
+
   return {
     activeTab,
     setActiveTab,
@@ -370,6 +420,7 @@ export const useModelScreenLogic = (navigation: any) => {
     isLoadingStoredModels,
     isRefreshingStoredModels,
     refreshStoredModels,
+    rescanStoredModels,
     downloadProgress,
     setDownloadProgress,
     isDownloadsVisible,

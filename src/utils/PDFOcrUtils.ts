@@ -1,7 +1,7 @@
 import React from 'react';
 import { Platform } from 'react-native';
-import * as FileSystem from 'expo-file-system';
-import PdfPageImage from 'react-native-pdf-page-image';
+import { fs as FileSystem } from '../services/fs';
+import PdfImage from 'pdf-image';
 import TextRecognition from '@react-native-ml-kit/text-recognition';
 
 export type PageImage = {
@@ -21,7 +21,7 @@ export const formatPdfPath = (path: string): string => {
   return Platform.OS === 'ios' ? `file://${path}` : path;
 };
 
-export const formatPathForPdfPageImage = (path: string): string => {
+export const formatPathForPdfImage = (path: string): string => {
   if (!path) return '';
   
   if (Platform.OS === 'android') {
@@ -65,11 +65,11 @@ export const extractPdfPages = async (
   try {
     setExtractionProgress('Opening PDF document...');
     
-    const formattedPdfPath = formatPathForPdfPageImage(pdfPath);
+    const formattedPdfPath = formatPathForPdfImage(pdfPath);
     
     let pdfInfo;
     try {
-      pdfInfo = await PdfPageImage.open(formattedPdfPath);
+      pdfInfo = await PdfImage.open(formattedPdfPath);
     } catch (err) {
       throw new Error('Failed to open PDF document.');
     }
@@ -96,7 +96,7 @@ export const extractPdfPages = async (
         }
         
         try {
-          const page = await PdfPageImage.generate(formattedPdfPath, pageIndex, 2.0);
+          const page = await PdfImage.generate(formattedPdfPath, pageIndex, 2.0);
           
           setExtractionProgress(`Pre-processing page ${i+1} of ${pagesToProcess} locally...`);
           const persistentUri = await copyImageToPersistentStorage(page.uri);
@@ -109,7 +109,7 @@ export const extractPdfPages = async (
         } catch (err) {
           
           try {
-            const alternatePage = await PdfPageImage.generate(formattedPdfPath, i+1, 2.0);
+            const alternatePage = await PdfImage.generate(formattedPdfPath, i+1, 2.0);
             
             setExtractionProgress(`Saving page with alternate index...`);
             const persistentUri = await copyImageToPersistentStorage(alternatePage.uri);
@@ -131,7 +131,7 @@ export const extractPdfPages = async (
             const pageIndex = 0;
             
             try {
-              const page = await PdfPageImage.generate(formattedPdfPath, pageIndex, 2.0);
+              const page = await PdfImage.generate(formattedPdfPath, pageIndex, 2.0);
               
               setExtractionProgress('Processing single page...');
               const persistentUri = await copyImageToPersistentStorage(page.uri);
@@ -143,7 +143,7 @@ export const extractPdfPages = async (
               });
             } catch (index0Err) {
               
-              const page = await PdfPageImage.generate(formattedPdfPath, 1, 2.0);
+              const page = await PdfImage.generate(formattedPdfPath, 1, 2.0);
               
               setExtractionProgress('Processing single page...');
               const persistentUri = await copyImageToPersistentStorage(page.uri);
@@ -159,7 +159,7 @@ export const extractPdfPages = async (
           }
         } else {
           try {
-            const pages = await PdfPageImage.generateAllPages(formattedPdfPath, 2.0);
+            const pages = await PdfImage.generateAllPages(formattedPdfPath, 2.0);
             
             
             if (pages.length !== pagesToProcess) {
@@ -182,7 +182,7 @@ export const extractPdfPages = async (
               setExtractionProgress(`Extracting page ${i+1} of ${pagesToProcess}...`);
               
               try {
-                const page = await PdfPageImage.generate(formattedPdfPath, pageIndex, 2.0);
+                const page = await PdfImage.generate(formattedPdfPath, pageIndex, 2.0);
                 
                 setExtractionProgress(`Saving page ${i+1} image...`);
                 const persistentUri = await copyImageToPersistentStorage(page.uri);
@@ -202,7 +202,7 @@ export const extractPdfPages = async (
     }
     
     try {
-      await PdfPageImage.close(formattedPdfPath);
+      await PdfImage.close(formattedPdfPath);
     } catch (err) {
     }
     

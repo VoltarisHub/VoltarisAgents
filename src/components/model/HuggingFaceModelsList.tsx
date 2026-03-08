@@ -34,7 +34,6 @@ export const HuggingFaceModelsList: React.FC<HuggingFaceModelsListProps> = ({
         <Text style={[styles.sectionHeaderTitle, { color: themeColors.text }]}>
           HuggingFace Models ({models.length})
         </Text>
-        {isLoading && <ActivityIndicator size="small" color={themeColors.primary} />}
       </View>
       
       {models.length > 0 ? (
@@ -57,7 +56,7 @@ export const HuggingFaceModelsList: React.FC<HuggingFaceModelsListProps> = ({
       ) : (
         !isLoading && (
           <Text style={[styles.noResultsText, { color: themeColors.textSecondary }]}>
-            No GGUF models found for "{searchQuery}"
+            No models found for "{searchQuery}"
           </Text>
         )
       )}

@@ -348,7 +348,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
       cancelText: 'Cancel',
       onConfirm: async () => {
         try {
-          const url = 'https://inferra.me/delete-account';
+          const url = 'https://inferrlm.app/delete-account';
           await WebBrowser.openBrowserAsync(url, {
             presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
             controlsColor: themeColors.primary,

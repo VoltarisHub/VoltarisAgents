@@ -1,9 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { huggingFaceService, HFModel, HFModelDetails } from '../services/HuggingFaceService';
 import { modelDownloader } from '../services/ModelDownloader';
 import { DownloadableModel } from '../components/model/DownloadableModelItem';
+import { ModelFormat } from '../types/models';
+import { ModelManager } from 'react-native-nitro-mlx';
+import { fs as FileSystem } from '../services/fs';
 
 export const useUnifiedModelList = (
   storedModels: any[],
@@ -40,6 +44,12 @@ export const useUnifiedModelList = (
   } | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [forceRender, setForceRender] = useState(0);
+  const [mlxDirDialogVisible, setMlxDirDialogVisible] = useState(false);
+  const [mlxDirName, setMlxDirName] = useState('');
+  const [pendingMLXDownload, setPendingMLXDownload] = useState<{
+    modelId: string;
+    files: Array<{ filename: string; downloadUrl: string; size: number }>;
+  } | null>(null);
 
   const showDialog = (title: string, message: string) => {
     setDialogTitle(title);
@@ -55,56 +65,39 @@ export const useUnifiedModelList = (
     }
   };
 
+  const formatDownloads = (count: number): string => {
+    if (count >= 1000000) {
+      return `${(count / 1000000).toFixed(1)}M`;
+    } else if (count >= 1000) {
+      return `${(count / 1000).toFixed(1)}K`;
+    }
+    return count.toString();
+  };
+
   const convertHfModelToDownloadable = (hfModel: HFModel): DownloadableModel => {
     const modelId = hfModel.id;
     const modelName = modelId.split('/').pop() || modelId;
     
-    const getModelFamily = (id: string) => {
-      const lowerName = id.toLowerCase();
-      if (lowerName.includes('llama')) return 'Llama';
-      if (lowerName.includes('mistral')) return 'Mistral';
-      if (lowerName.includes('phi')) return 'Phi';
-      if (lowerName.includes('gemma')) return 'Gemma';
-      if (lowerName.includes('qwen')) return 'Qwen';
-      if (lowerName.includes('vicuna')) return 'Vicuna';
-      if (lowerName.includes('orca')) return 'Orca';
-      if (lowerName.includes('falcon')) return 'Falcon';
-      if (lowerName.includes('alpaca')) return 'Alpaca';
-      if (lowerName.includes('codellama')) return 'CodeLlama';
-      return 'Other';
-    };
-
-    const getQuantization = (name: string) => {
-      const lowerName = name.toLowerCase();
-      if (lowerName.includes('q8_0')) return 'Q8_0';
-      if (lowerName.includes('q6_k')) return 'Q6_K';
-      if (lowerName.includes('q5_k_m')) return 'Q5_K_M';
-      if (lowerName.includes('q5_0')) return 'Q5_0';
-      if (lowerName.includes('q4_k_m')) return 'Q4_K_M';
-      if (lowerName.includes('q4_0')) return 'Q4_0';
-      if (lowerName.includes('q3_k_m')) return 'Q3_K_M';
-      if (lowerName.includes('q2_k')) return 'Q2_K';
-      if (lowerName.includes('iq4_nl')) return 'IQ4_NL';
-      if (lowerName.includes('iq3_m')) return 'IQ3_M';
-      if (lowerName.includes('iq2_m')) return 'IQ2_M';
-      if (lowerName.includes('f16')) return 'F16';
-      if (lowerName.includes('f32')) return 'F32';
-      return 'Mixed';
-    };
-
     const tags = [];
     if (hfModel.hasVision) {
       tags.push('vision');
     }
+    
+    const modelFormat = hfModel.modelFormat || ModelFormat.UNKNOWN;
+    if (modelFormat === ModelFormat.MLX) {
+      tags.push('mlx');
+    } else if (modelFormat === ModelFormat.GGUF) {
+      tags.push('llamacpp');
+    }
 
     return {
       name: modelName,
-      description: `HuggingFace model • ${hfModel.downloads || 0} downloads • ${hfModel.likes || 0} likes`,
-      size: `${hfModel.downloads || 0} downloads`,
+      description: '',
+      size: `${formatDownloads(hfModel.downloads || 0)} downloads`,
       huggingFaceLink: `https://huggingface.co/${modelId}`,
       licenseLink: '',
-      modelFamily: getModelFamily(modelId),
-      quantization: getQuantization(modelId),
+      modelFamily: '',
+      quantization: '',
       tags: tags,
       modelType: hfModel.hasVision ? 'vision' as any : undefined,
       capabilities: hfModel.capabilities,
@@ -140,8 +133,11 @@ export const useUnifiedModelList = (
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
-    if (query.trim()) {
-      searchHuggingFace(query);
+  };
+
+  const handleSearchSubmit = () => {
+    if (searchQuery.trim()) {
+      searchHuggingFace(searchQuery);
     } else {
       setHfModels([]);
       setShowingHfResults(false);
@@ -185,7 +181,88 @@ export const useUnifiedModelList = (
       return;
     }
 
+    if (hfModel.modelFormat === ModelFormat.MLX) {
+      if (Platform.OS !== 'ios') {
+        showDialog('Not Supported', 'MLX downloads are only available on iOS.');
+        return;
+      }
+
+      const modelId = hfModel.id;
+      
+      const isAlreadyDownloaded = await ModelManager.isDownloaded(modelId);
+      if (isAlreadyDownloaded) {
+        showDialog('Already Downloaded', 'This MLX model is already in your collection.');
+        return;
+      }
+
+      try {
+        const details = await huggingFaceService.getModelDetails(modelId);
+        const mlxFiles = details.mlxFileGroup?.required || [];
+        
+        if (mlxFiles.length === 0) {
+          showDialog('Error', 'No MLX files found for this model');
+          return;
+        }
+
+        const filesToDownload = mlxFiles.map(file => ({
+          filename: file.rfilename,
+          downloadUrl: file.url || `https://huggingface.co/${modelId}/resolve/main/${file.rfilename}`,
+          size: file.size || 0,
+        }));
+
+        requestMLXDownload(modelId, filesToDownload);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        showDialog('Download Error', `Failed to download MLX model: ${errorMessage}`);
+      }
+      return;
+    }
+
     await handleModelPress(hfModel);
+  };
+
+  const requestMLXDownload = (
+    modelId: string,
+    files: Array<{ filename: string; downloadUrl: string; size: number }>
+  ) => {
+    const defaultDir = modelId.split('/').pop() || modelId;
+    setMlxDirName(defaultDir);
+    setPendingMLXDownload({ modelId, files });
+    setMlxDirDialogVisible(true);
+  };
+
+  const hideMLXDirDialog = () => {
+    setMlxDirDialogVisible(false);
+    setPendingMLXDownload(null);
+    setMlxDirName('');
+  };
+
+  const confirmMLXDirDownload = async () => {
+    if (!pendingMLXDownload) {
+      return;
+    }
+
+    const dirName = mlxDirName.trim();
+    if (!dirName) {
+      showDialog('Invalid Directory', 'Please enter a folder name for MLX model files.');
+      return;
+    }
+
+    const { modelId, files } = pendingMLXDownload;
+    hideMLXDirDialog();
+    navigation.navigate('Downloads' as never);
+
+    try {
+      await modelDownloader.downloadMLXModel(
+        modelId,
+        files,
+        huggingFaceService.getAccessToken(),
+        dirName
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      showDialog('Download Error', `Failed to start MLX model download: ${errorMessage}`);
+    }
   };
 
   const proceedWithDownload = async (filename: string, downloadUrl: string, modelId?: string) => {
@@ -240,7 +317,7 @@ export const useUnifiedModelList = (
     navigation.navigate('Downloads' as never);
 
     const downloadPromises = files.map(async (file) => {
-      const fullFilename = `${modelId.replace('/', '_')}_${file.filename}`;
+      const fullFilename = file.filename;
       
       if (isModelDownloaded(fullFilename)) {
         return;
@@ -365,15 +442,22 @@ export const useUnifiedModelList = (
     pendingVisionDownload,
     selectedFiles,
     forceRender,
+    mlxDirDialogVisible,
+    mlxDirName,
+    pendingMLXDownload,
     showDialog,
     hideDialog,
     handleFilterExpandChange,
     convertHfModelToDownloadable,
     handleSearch,
+    handleSearchSubmit,
     clearSearch,
     isModelDownloaded,
     handleModelPress,
     handleHfModelDownload,
+    requestMLXDownload,
+    hideMLXDirDialog,
+    confirmMLXDirDownload,
     proceedWithDownload,
     proceedWithMultipleDownloads,
     proceedWithCuratedDownload,
@@ -384,5 +468,6 @@ export const useUnifiedModelList = (
     setShowWarningDialog,
     setPendingDownload,
     setPendingVisionDownload,
+    setMlxDirName,
   };
 };

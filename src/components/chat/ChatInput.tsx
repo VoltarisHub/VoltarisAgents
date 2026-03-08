@@ -12,16 +12,18 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import { fs as FileSystem } from '../../services/fs';
 import { useTheme } from '../../context/ThemeContext';
 import { useModel } from '../../context/ModelContext';
 import { theme } from '../../constants/theme';
 import { getThemeAwareColor } from '../../utils/ColorUtils';
-import FileViewerModal from '../../components/FileViewerModal';
-import CameraOverlay from '../../components/CameraOverlay';
+import FileViewerModal from '../FileViewerModal';
+import CameraOverlay from '../CameraOverlay';
 import { llamaManager } from '../../utils/LlamaManager';
-import { Dialog, Portal, Text, Button } from 'react-native-paper';
+import { Text } from 'react-native-paper';
+import Dialog from '../Dialog';
 import { modelDownloader } from '../../services/ModelDownloader';
+import { engineService } from '../../services/inference-engine-service';
 import AITermsDialog from './AITermsDialog';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import StopButton from '../StopButton';
@@ -29,6 +31,7 @@ import { RAGService, type RAGDocument, type RAGStorageType } from '../../service
 import type { ProviderType } from '../../services/ModelManagementService';
 import chatManager from '../../utils/ChatManager';
 import { uuidv4 } from 'react-native-rag';
+import { OnlineModelService } from '../../services/OnlineModelService';
 
 type ChatInputProps = {
   onSend: (text: string) => void;
@@ -53,7 +56,25 @@ interface StoredModel {
   modified: string;
 }
 
-const remoteProviders: ProviderType[] = ['gemini', 'chatgpt', 'deepseek', 'claude'];
+const remoteProviders: ProviderType[] = ['gemini', 'chatgpt', 'claude'];
+
+const isRemoteProvider = (provider: string | null): boolean => {
+  if (!provider) {
+    return false;
+  }
+  const baseProvider = OnlineModelService.getBaseProvider(provider);
+  return remoteProviders.includes(baseProvider as ProviderType);
+};
+
+const isOnlineProvider = (provider: string | null): boolean => {
+  if (!provider) {
+    return false;
+  }
+  if (provider === 'apple-foundation') {
+    return true;
+  }
+  return isRemoteProvider(provider);
+};
 
 export default function ChatInput({ 
   onSend, 
@@ -89,7 +110,7 @@ export default function ChatInput({
   const { selectedModelPath, isModelLoading, loadModel, isMultimodalEnabled } = useModel();
   const themeColors = useMemo(() => theme[currentTheme as 'light' | 'dark'], [currentTheme]);
   const isDark = currentTheme === 'dark';
-  const isRemoteModel = !!selectedModelPath && remoteProviders.includes(selectedModelPath as ProviderType);
+  const isRemoteModel = isRemoteProvider(selectedModelPath);
   const isAppleFoundation = selectedModelPath === 'apple-foundation';
   const ragEnabledForCurrentModel = !!selectedModelPath && !isRemoteModel;
   const ragToggleDisabled = isAppleFoundation;
@@ -224,7 +245,7 @@ export default function ChatInput({
   const checkMultimodalSupport = (): boolean => {
     if (!selectedModelPath) return false;
 
-    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
+    const isOnlineModel = isOnlineProvider(selectedModelPath);
     if (isOnlineModel) {
       return true;
     }
@@ -418,8 +439,10 @@ export default function ChatInput({
       return;
     }
 
-    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
-    if (!isOnlineModel && (!llamaManager.isInitialized() || isModelLoading)) {
+    const isOnlineModel = isOnlineProvider(selectedModelPath);
+    const engineReady = engineService.mgr().ready();
+    
+    if (!isOnlineModel && (!engineReady || isModelLoading)) {
       showDialog(
         'Model Not Ready',
         'Please wait for the local model to finish loading before sending a message.'
@@ -427,7 +450,11 @@ export default function ChatInput({
       return;
     }
     
-    onSend(text);
+    try {
+      onSend(text);
+    } catch (error) {
+      console.log('chat_input_send_error', error instanceof Error ? error.message : error);
+    }
     setText('');
     setInputHeight(52);
     setShowAttachmentMenu(false);
@@ -459,8 +486,8 @@ export default function ChatInput({
           return { handled, cancelled, documentId };
         }
 
-        const isRemoteOrApple = selectedModelPath && ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
-        if (!isRemoteOrApple && !llamaManager.isInitialized()) {
+        const isRemoteOrApple = isOnlineProvider(selectedModelPath);
+        if (!isRemoteOrApple && !engineService.mgr().ready()) {
           showDialog('Model not ready', 'Load a local model before using retrieval.');
           return { handled, cancelled, documentId };
         }
@@ -470,7 +497,7 @@ export default function ChatInput({
         ragCancelRef.current.cancelled = false;
         setRagProgress({ completed: 0, total: 0 });
 
-  const provider: ProviderType = isRemoteOrApple ? (selectedModelPath as ProviderType) : 'local';
+      const provider: ProviderType = isRemoteOrApple ? (selectedModelPath as ProviderType) : 'local';
         await RAGService.initialize(provider);
 
         if (!RAGService.isReady()) {
@@ -698,7 +725,7 @@ export default function ChatInput({
     }
 
     if (!checkMultimodalSupport()) {
-      const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
+      const isOnlineModel = isOnlineProvider(selectedModelPath);
       if (!isOnlineModel) {
         showMmProjSelector('camera');
         return;
@@ -732,7 +759,7 @@ export default function ChatInput({
         const file = result.assets[0];
         
         if (isImageFile(file.name) && !checkMultimodalSupport()) {
-          const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
+          const isOnlineModel = isOnlineProvider(selectedModelPath);
           if (!isOnlineModel) {
             setPendingFileForMultimodal({
               uri: file.uri,
@@ -874,7 +901,7 @@ export default function ChatInput({
             >
               <View style={styles.experimentalTag}>
                 <Text style={[styles.experimentalText, { color: isDark ? '#ffb74d' : '#f57c00' }]}>
-                  Experimental
+                  BETA
                 </Text>
               </View>
               
@@ -1081,26 +1108,21 @@ export default function ChatInput({
         ragToggleDisabled={ragToggleDisabled}
       />
 
-      <Portal>
-        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
-          <Dialog.Title style={{ color: isDark ? '#ffffff' : '#000000' }}>
-            {dialogTitle}
-          </Dialog.Title>
-          <Dialog.Content>
-            <Text style={{ color: isDark ? '#ffffff' : '#000000' }}>
-              {dialogMessage}
-            </Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-                         <Button onPress={hideDialog} textColor={getThemeAwareColor('#4a0660', currentTheme)}>
-               OK
-             </Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+<Dialog
+        visible={dialogVisible}
+        onDismiss={hideDialog}
+        title={dialogTitle}
+        description={dialogMessage}
+        buttonText="OK"
+        onClose={hideDialog}
+      />
 
-      <Portal>
-        <Dialog visible={mmProjSelectorVisible} onDismiss={handleMmProjSelectorClose}>
+      <Dialog visible={mmProjSelectorVisible} onDismiss={handleMmProjSelectorClose}
+        primaryButtonText="Skip"
+        onPrimaryPress={handleMmProjSkip}
+        secondaryButtonText="Cancel"
+        onSecondaryPress={handleMmProjSelectorClose}
+      >
           <Dialog.Title style={{ color: isDark ? '#ffffff' : '#000000' }}>
             Select Multimodal Projector
           </Dialog.Title>
@@ -1162,22 +1184,7 @@ export default function ChatInput({
               ))
             )}
           </Dialog.Content>
-          <Dialog.Actions>
-            <Button 
-              onPress={handleMmProjSkip}
-              textColor={getThemeAwareColor('#4a0660', currentTheme)}
-            >
-              Skip
-            </Button>
-            <Button 
-              onPress={handleMmProjSelectorClose}
-              textColor={getThemeAwareColor('#4a0660', currentTheme)}
-            >
-              Cancel
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      </Dialog>
 
       <AITermsDialog
         visible={showAITermsDialog}

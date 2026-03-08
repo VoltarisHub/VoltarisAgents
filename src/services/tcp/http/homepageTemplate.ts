@@ -422,7 +422,7 @@ export function getHomepageHTML(): string {
           <span class="method get">GET</span>
           <span class="endpoint-path">/api/models/remote/status</span>
         </div>
-        <p class="endpoint-desc">Get status of all remote model providers (Gemini, ChatGPT, DeepSeek, Claude)</p>
+        <p class="endpoint-desc">Get status of all remote model providers (Gemini, ChatGPT, Claude)</p>
         <div class="code-label">Response:</div>
         <pre class="code-block">{
   "providers": [

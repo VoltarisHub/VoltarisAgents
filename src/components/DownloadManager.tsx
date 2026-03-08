@@ -9,7 +9,8 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
-import { Dialog, Portal, PaperProvider, Text, Button } from 'react-native-paper';
+import { Text } from 'react-native-paper';
+import Dialog from './Dialog';
 
 interface DownloadInfo {
   id: number;
@@ -235,17 +236,14 @@ const DownloadManager = forwardRef<DownloadManagerRef, DownloadManagerProps>(
           </View>
         </Modal>
 
-        <Portal>
-          <Dialog visible={dialogVisible} onDismiss={hideAppDialog}>
-            <Dialog.Title>{dialogTitle}</Dialog.Title>
-            <Dialog.Content>
-              <Text variant="bodyMedium">{dialogMessage}</Text>
-            </Dialog.Content>
-            <Dialog.Actions>
-              <Button onPress={hideAppDialog}>OK</Button>
-            </Dialog.Actions>
-          </Dialog>
-        </Portal>
+        <Dialog
+          visible={dialogVisible}
+          onDismiss={hideAppDialog}
+          title={dialogTitle}
+          description={dialogMessage}
+          buttonText="OK"
+          onClose={hideAppDialog}
+        />
       </>
     );
   }

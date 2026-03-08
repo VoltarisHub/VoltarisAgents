@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import { fs as FileSystem } from '../services/fs';
 
 const MIN_FREE_SPACE = 100 * 1024 * 1024;
 

@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import { type LlamaContext } from 'llama.rn';
-import * as FileSystem from 'expo-file-system';
+import { fs as FileSystem } from './fs';
 import { 
   ProcessedMessage, 
   MultimodalContent, 
@@ -180,6 +180,22 @@ export class MultimodalService {
     return mimeTypes[extension] || 'application/octet-stream';
   }
 
+  private normalizeMediaUrl(uri: string): string {
+    if (!uri) {
+      return uri;
+    }
+
+    if (uri.startsWith('file://') || uri.startsWith('content://') || uri.startsWith('http://') || uri.startsWith('https://') || uri.startsWith('data:')) {
+      return uri;
+    }
+
+    if (uri.startsWith('/')) {
+      return `file://${uri}`;
+    }
+
+    return uri;
+  }
+
   async createMultimodalContent(processed: ProcessedMessage): Promise<MultimodalContent[]> {
     const content: MultimodalContent[] = [];
 
@@ -189,17 +205,15 @@ export class MultimodalService {
     });
 
     if (processed.images && processed.images.length > 0 && this.multimodalSupport.vision) {
+      console.log('mm_content_images', processed.images.length);
       for (const imageUri of processed.images) {
         try {
-          let cleanPath = imageUri;
-          if (cleanPath.startsWith('file://')) {
-            cleanPath = cleanPath.slice(7);
-          }
+          const normalizedPath = this.normalizeMediaUrl(imageUri);
           
           content.push({
             type: 'image_url',
             image_url: {
-              url: cleanPath,
+              url: normalizedPath,
             },
           });
         } catch (error) {
@@ -210,10 +224,7 @@ export class MultimodalService {
     if (processed.audioFiles && processed.audioFiles.length > 0 && this.multimodalSupport.audio) {
       for (const audioUri of processed.audioFiles) {
         try {
-          let cleanPath = audioUri;
-          if (cleanPath.startsWith('file://')) {
-            cleanPath = cleanPath.slice(7);
-          }
+          const normalizedPath = this.normalizeMediaUrl(audioUri);
           
           const extension = this.getFileExtension(audioUri);
           
@@ -223,7 +234,7 @@ export class MultimodalService {
           content.push({
             type: 'input_audio',
             input_audio: {
-              url: cleanPath,
+              url: normalizedPath,
               format: format,
             },
           });

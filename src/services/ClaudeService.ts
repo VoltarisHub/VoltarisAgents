@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import { fs as FileSystem } from './fs';
 
 type ChatMessage = {
   id: string;
@@ -112,7 +112,8 @@ export class ClaudeService {
   async generateResponse(
     messages: ChatMessage[],
     options: ClaudeRequestOptions = {},
-    onToken?: (token: string) => boolean | void
+    onToken?: (token: string) => boolean | void,
+    provider = 'claude'
   ): Promise<{
     fullResponse: string;
     tokenCount: number;
@@ -123,7 +124,7 @@ export class ClaudeService {
     let fullResponse = '';
 
     try {
-      const apiKey = await this.apiKeyProvider('claude');
+      const apiKey = await this.apiKeyProvider(provider);
       if (!apiKey) {
         throw new Error('Claude API key not found. Please set it in Settings.');
       }
@@ -168,7 +169,7 @@ export class ClaudeService {
       };
 
       
-  const baseUrl = await this.baseUrlProvider('claude');
+  const baseUrl = await this.baseUrlProvider(provider);
   const response = await fetch(`${baseUrl}/messages`, {
         method: 'POST',
         headers,

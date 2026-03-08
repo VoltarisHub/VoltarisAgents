@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import { fs as FileSystem } from './fs';
 import { EventEmitter } from './EventEmitter';
 import { ImportProgressEvent } from './ModelDownloaderTypes';
 

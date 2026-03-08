@@ -7,6 +7,7 @@ import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import LicensesScreen from '../screens/LicensesScreen';
+import ContentTermsScreen from '../screens/ContentTermsScreen';
 import ReportScreen from '../screens/ReportScreen';
 import ModelSettingsScreen from '../screens/ModelSettingsScreen';
 import ServerLogsScreen from '../screens/ServerLogsScreen';
@@ -58,6 +59,13 @@ export default function RootNavigator() {
         <Stack.Screen 
           name="Licenses" 
           component={LicensesScreen}
+          options={{
+            animation: 'slide_from_right'
+          }}
+        />
+        <Stack.Screen 
+          name="ContentTerms" 
+          component={ContentTermsScreen}
           options={{
             animation: 'slide_from_right'
           }}

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
-import { AppState, AppStateStatus, Text, TextInput, LogBox, View } from 'react-native';
+import { AppState, AppStateStatus, Text, TextInput, LogBox, View, BackHandler, ToastAndroid } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -15,6 +15,7 @@ import { ModelProvider } from './src/context/ModelContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import { DownloadProvider } from './src/context/DownloadContext';
 import { modelDownloader } from './src/services/ModelDownloader';
+import { engineService } from './src/services/inference-engine-service';
 import * as TaskManager from 'expo-task-manager';
 import * as BackgroundTask from 'expo-background-task';
 import { ThemeColors } from './src/types/theme';
@@ -22,13 +23,15 @@ import { notificationService } from './src/services/NotificationService';
 import { initializeFirebase } from './src/services/FirebaseAuth';
 import { initGeminiService } from './src/services/GeminiInitializer';
 import { initOpenAIService } from './src/services/OpenAIInitializer';
-import { initDeepSeekService } from './src/services/DeepSeekInitializer';
 import { initClaudeService } from './src/services/ClaudeInitializer';
-import { PaperProvider } from 'react-native-paper';
+import { PaperProvider, MD3DarkTheme, MD3LightTheme } from 'react-native-paper';
 import { DialogProvider } from './src/context/DialogContext';
 import { ShowDialog } from './src/components/ShowDialog';
+import { initializeBindings } from './src/utils/llamaBinding';
 
 SplashScreen.preventAutoHideAsync();
+
+initializeBindings().catch(() => {});
 
 const initializeServices = async () => {
   try {
@@ -36,9 +39,13 @@ const initializeServices = async () => {
   } catch (error) {
   }
   
+  try {
+    await engineService.load();
+  } catch (error) {
+  }
+  
   initGeminiService();
   initOpenAIService();
-  initDeepSeekService();
   initClaudeService();
 };
 
@@ -85,6 +92,8 @@ function Navigation() {
   const themeColors = theme[currentTheme as ThemeColors];
   const insets = useSafeAreaInsets();
   const appState = useRef(AppState.currentState);
+  const navigationRef = useRef<any>(null);
+  const lastBackPressRef = useRef(0);
 
   const customDefaultTheme = {
     ...DefaultTheme,
@@ -113,6 +122,32 @@ function Navigation() {
   };
 
   useEffect(() => {
+    const backSubscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      const nav = navigationRef.current;
+      if (!nav || typeof nav.isReady !== 'function' || !nav.isReady()) {
+        return false;
+      }
+
+      if (nav.canGoBack()) {
+        return false;
+      }
+
+      const currentRoute = nav.getCurrentRoute?.();
+      if (currentRoute?.name !== 'HomeTab') {
+        nav.navigate('MainTabs', { screen: 'HomeTab' });
+        return true;
+      }
+
+      const now = Date.now();
+      if (now - lastBackPressRef.current < 1500) {
+        return false;
+      }
+
+      lastBackPressRef.current = now;
+      ToastAndroid.show('Press back again to exit', ToastAndroid.SHORT);
+      return true;
+    });
+
     let isMounted = true;
     
     const fetchUpdates = async () => {
@@ -178,6 +213,7 @@ function Navigation() {
       isMounted = false;
       clearTimeout(updateTimer);
       clearTimeout(timer);
+      backSubscription.remove();
       try {
         llamaManager.release();
         if (subscription && typeof subscription.remove === 'function') {
@@ -210,6 +246,7 @@ function Navigation() {
 
   return (
       <NavigationContainer 
+        ref={navigationRef}
         theme={currentTheme === 'dark' ? customDarkTheme : customDefaultTheme}
       >
         {/* Status Bar Background View for edge-to-edge display */}
@@ -274,21 +311,27 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <PaperProvider>
-        <ModelProvider>
-          <DownloadProvider>
-            <RemoteModelProvider>
-              <GestureHandlerRootView style={{ flex: 1 }}>
-                <ThemeProvider>
+      <ThemeProvider>
+        <ThemedPaper>
+          <ModelProvider>
+            <DownloadProvider>
+              <RemoteModelProvider>
+                <GestureHandlerRootView style={{ flex: 1 }}>
                   <DialogProvider>
                     <Navigation />
                   </DialogProvider>
-                </ThemeProvider>
-              </GestureHandlerRootView>
-            </RemoteModelProvider>
-          </DownloadProvider>
-        </ModelProvider>
-      </PaperProvider>
+                </GestureHandlerRootView>
+              </RemoteModelProvider>
+            </DownloadProvider>
+          </ModelProvider>
+        </ThemedPaper>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
+}
+
+function ThemedPaper({ children }: { children: React.ReactNode }) {
+  const { theme: currentTheme } = useTheme();
+  const paperTheme = currentTheme === 'dark' ? MD3DarkTheme : MD3LightTheme;
+  return <PaperProvider theme={paperTheme}>{children}</PaperProvider>;
 }

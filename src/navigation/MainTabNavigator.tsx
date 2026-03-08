@@ -133,6 +133,15 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 
 export default function MainTabNavigator() {
   const { isWideScreen } = useResponsiveLayout();
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return null;
+  }
 
   if (isWideScreen) {
     return <WideScreenLayout />;
@@ -140,9 +149,12 @@ export default function MainTabNavigator() {
 
   return (
     <Tab.Navigator
+      backBehavior="history"
       tabBar={props => <CustomTabBar {...props} />}
+      detachInactiveScreens={false}
       screenOptions={{
         headerShown: false,
+        freezeOnBlur: false,
       }}
     >
       <Tab.Screen

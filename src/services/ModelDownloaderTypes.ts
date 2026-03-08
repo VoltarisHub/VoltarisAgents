@@ -1,4 +1,4 @@
-import { ModelType } from '../types/models';
+import { ModelType, ModelFormat } from '../types/models';
 
 export type Listener = (...args: any[]) => void;
 
@@ -58,6 +58,9 @@ export interface StoredModel {
   downloaded: boolean;
   isExternal?: boolean;
   modelType?: ModelType;
+  modelFormat?: ModelFormat;
+  isDirectory?: boolean;
+  fileCount?: number;
   capabilities?: string[];
   supportsMultimodal?: boolean;
   compatibleProjectionModels?: string[];

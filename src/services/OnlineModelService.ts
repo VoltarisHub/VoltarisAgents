@@ -1,7 +1,6 @@
 import EventEmitter from 'eventemitter3';
 import { GeminiService } from './GeminiService';
 import { OpenAIService } from './OpenAIService';
-import { DeepSeekService } from './DeepSeekService';
 import { ClaudeService } from './ClaudeService';
 import Constants from 'expo-constants';
 import providerKeyStorage from '../utils/ProviderKeyStorage';
@@ -32,26 +31,32 @@ interface OnlineModelServiceEvents {
   'api-key-updated': (provider: string) => void;
 }
 
-class OnlineModelService {
+export class OnlineModelService {
   private events = new EventEmitter<OnlineModelServiceEvents>();
   private _geminiServiceGetter: () => GeminiService | null = () => null;
   private _openAIServiceGetter: () => OpenAIService | null = () => null;
-  private _deepSeekServiceGetter: () => DeepSeekService | null = () => null;
   private _claudeServiceGetter: () => ClaudeService | null = () => null;
   private defaultKeys = {
     gemini: Constants.expoConfig?.extra?.GEMINI_API_KEY || '',
     chatgpt: Constants.expoConfig?.extra?.OPENAI_API_KEY || '',
-    deepseek: Constants.expoConfig?.extra?.DEEPSEEK_API_KEY || '',
     claude: Constants.expoConfig?.extra?.ANTHROPIC_API_KEY || '',
   };
   private defaultUrls: Record<string, string> = {
     gemini: 'https://generativelanguage.googleapis.com/v1beta',
     chatgpt: 'https://api.openai.com/v1',
-    deepseek: 'https://api.deepseek.com',
     claude: 'https://api.anthropic.com/v1'
   };
   private isInitialized = false;
   private initPromise: Promise<void> | null = null;
+
+  static getBaseProvider(provider: string): string {
+    const idx = provider.indexOf('_clone_');
+    return idx !== -1 ? provider.slice(0, idx) : provider;
+  }
+
+  static isClone(provider: string): boolean {
+    return provider.includes('_clone_');
+  }
 
   setGeminiServiceGetter(getter: () => GeminiService) {
     this._geminiServiceGetter = getter;
@@ -59,10 +64,6 @@ class OnlineModelService {
   
   setOpenAIServiceGetter(getter: () => OpenAIService) {
     this._openAIServiceGetter = getter;
-  }
-  
-  setDeepSeekServiceGetter(getter: () => DeepSeekService) {
-    this._deepSeekServiceGetter = getter;
   }
   
   setClaudeServiceGetter(getter: () => ClaudeService) {
@@ -96,7 +97,8 @@ class OnlineModelService {
 
       const shouldUseDefault = record ? record.useDefault !== 0 : true;
       if (shouldUseDefault) {
-        const defaultKey = this.defaultKeys[provider as keyof typeof this.defaultKeys];
+        const base = OnlineModelService.getBaseProvider(provider);
+        const defaultKey = this.defaultKeys[base as keyof typeof this.defaultKeys];
         if (defaultKey) {
           return defaultKey;
         }
@@ -160,14 +162,16 @@ class OnlineModelService {
       }
 
       const shouldUseDefault = record ? record.useDefault !== 0 : true;
-      return shouldUseDefault && !!this.defaultKeys[provider as keyof typeof this.defaultKeys];
+      const base = OnlineModelService.getBaseProvider(provider);
+      return shouldUseDefault && !!this.defaultKeys[base as keyof typeof this.defaultKeys];
     } catch (error) {
       return false;
     }
   }
 
   hasDefaultKey(provider: string): boolean {
-    return !!this.defaultKeys[provider as keyof typeof this.defaultKeys];
+    const base = OnlineModelService.getBaseProvider(provider);
+    return !!this.defaultKeys[base as keyof typeof this.defaultKeys];
   }
 
   async getModelName(provider: string): Promise<string | null> {
@@ -200,18 +204,49 @@ class OnlineModelService {
     }
   }
 
+  async getSystemInstruction(provider: string): Promise<string | null> {
+    try {
+      await this.ensureInitialized();
+      const record = await providerKeyStorage.getEntry(provider);
+      return record?.systemInstruction || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  async saveSystemInstruction(provider: string, instruction: string): Promise<boolean> {
+    try {
+      await this.ensureInitialized();
+      await providerKeyStorage.upsertEntry(provider, { systemInstruction: instruction });
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async clearSystemInstruction(provider: string): Promise<boolean> {
+    try {
+      await this.ensureInitialized();
+      await providerKeyStorage.upsertEntry(provider, { systemInstruction: null });
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
   getDefaultModelName(provider: string): string {
+    const base = OnlineModelService.getBaseProvider(provider);
     const defaults: Record<string, string> = {
       gemini: 'gemini-2.5-flash',
       chatgpt: 'gpt-4.1',
-      deepseek: 'deepseek-reasoner',
       claude: 'claude-sonnet-4-5'
     };
-    return defaults[provider] || '';
+    return defaults[base] || '';
   }
 
   getDefaultBaseUrl(provider: string): string {
-    return this.defaultUrls[provider] || '';
+    const base = OnlineModelService.getBaseProvider(provider);
+    return this.defaultUrls[base] || '';
   }
 
   async getBaseUrl(provider: string): Promise<string> {
@@ -275,18 +310,65 @@ class OnlineModelService {
     return () => this.events.off(event, listener);
   }
 
+  async listClones(): Promise<{ id: string; displayName: string; baseProvider: string }[]> {
+    try {
+      await this.ensureInitialized();
+      const all = await providerKeyStorage.listAll();
+      return all
+        .filter(r => OnlineModelService.isClone(r.provider))
+        .map(r => ({
+          id: r.provider,
+          displayName: r.displayName || r.provider,
+          baseProvider: OnlineModelService.getBaseProvider(r.provider),
+        }));
+    } catch {
+      return [];
+    }
+  }
+
+  async createClone(baseProvider: string, displayName: string): Promise<string> {
+    await this.ensureInitialized();
+    const shortId = Math.random().toString(36).slice(2, 7);
+    const cloneId = `${baseProvider}_clone_${shortId}`;
+    await providerKeyStorage.upsertEntry(cloneId, { displayName, useDefault: 0 });
+    this.events.emit('api-key-updated', cloneId);
+    return cloneId;
+  }
+
+  async deleteClone(cloneId: string): Promise<void> {
+    await this.ensureInitialized();
+    await providerKeyStorage.deleteEntry(cloneId);
+    this.events.emit('api-key-updated', cloneId);
+  }
+
+  async getDisplayName(provider: string): Promise<string | null> {
+    try {
+      await this.ensureInitialized();
+      const record = await providerKeyStorage.getEntry(provider);
+      return record?.displayName || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async saveDisplayName(provider: string, name: string): Promise<void> {
+    await this.ensureInitialized();
+    await providerKeyStorage.upsertEntry(provider, { displayName: name });
+  }
+
   async sendMessageToGemini(
     messages: ChatMessage[],
     options: OnlineModelRequestOptions = {},
-    onToken?: (token: string) => boolean | void
+    onToken?: (token: string) => boolean | void,
+    provider = 'gemini'
   ): Promise<string> {
     const geminiService = this._geminiServiceGetter();
     if (!geminiService) {
       throw new Error('GeminiService not initialized');
     }
     
-    const configuredModel = await this.getModelName('gemini');
-    const modelToUse = configuredModel || this.getDefaultModelName('gemini');
+    const configuredModel = await this.getModelName(provider);
+    const modelToUse = configuredModel || this.getDefaultModelName(provider);
     
     const geminiOptions = {
       ...options,
@@ -300,7 +382,8 @@ class OnlineModelService {
     const { fullResponse } = await geminiService.generateResponse(
       messages, 
       geminiOptions, 
-      streamEnabled ? onToken : undefined
+      streamEnabled ? onToken : undefined,
+      provider
     );
     
     return fullResponse;
@@ -309,15 +392,16 @@ class OnlineModelService {
   async sendMessageToOpenAI(
     messages: ChatMessage[],
     options: OnlineModelRequestOptions = {},
-    onToken?: (token: string) => boolean | void
+    onToken?: (token: string) => boolean | void,
+    provider = 'chatgpt'
   ): Promise<string> {
     const openAIService = this._openAIServiceGetter();
     if (!openAIService) {
       throw new Error('OpenAIService not initialized');
     }
     
-    const configuredModel = await this.getModelName('chatgpt');
-    const modelToUse = configuredModel || this.getDefaultModelName('chatgpt');
+    const configuredModel = await this.getModelName(provider);
+    const modelToUse = configuredModel || this.getDefaultModelName(provider);
     
     const openAIOptions = {
       ...options,
@@ -331,38 +415,8 @@ class OnlineModelService {
     const { fullResponse } = await openAIService.generateResponse(
       messages, 
       openAIOptions, 
-      streamEnabled ? onToken : undefined
-    );
-    
-    return fullResponse;
-  }
-  
-  async sendMessageToDeepSeek(
-    messages: ChatMessage[],
-    options: OnlineModelRequestOptions = {},
-    onToken?: (token: string) => boolean | void
-  ): Promise<string> {
-    const deepSeekService = this._deepSeekServiceGetter();
-    if (!deepSeekService) {
-      throw new Error('DeepSeekService not initialized');
-    }
-    
-    const configuredModel = await this.getModelName('deepseek');
-    const modelToUse = configuredModel || this.getDefaultModelName('deepseek');
-    
-    const deepSeekOptions = {
-      ...options,
-      model: options.model || modelToUse,
-      streamTokens: options.streamTokens !== false
-    };
-    
-    const streamEnabled = options.stream === true && typeof onToken === 'function';
-    
-    
-    const { fullResponse } = await deepSeekService.generateResponse(
-      messages, 
-      deepSeekOptions, 
-      streamEnabled ? onToken : undefined
+      streamEnabled ? onToken : undefined,
+      provider
     );
     
     return fullResponse;
@@ -371,15 +425,16 @@ class OnlineModelService {
   async sendMessageToClaude(
     messages: ChatMessage[],
     options: OnlineModelRequestOptions = {},
-    onToken?: (token: string) => boolean | void
+    onToken?: (token: string) => boolean | void,
+    provider = 'claude'
   ): Promise<string> {
     const claudeService = this._claudeServiceGetter();
     if (!claudeService) {
       throw new Error('ClaudeService not initialized');
     }
     
-    const configuredModel = await this.getModelName('claude');
-    const modelToUse = configuredModel || this.getDefaultModelName('claude');
+    const configuredModel = await this.getModelName(provider);
+    const modelToUse = configuredModel || this.getDefaultModelName(provider);
     
     const claudeOptions = {
       ...options,
@@ -393,10 +448,30 @@ class OnlineModelService {
     const { fullResponse } = await claudeService.generateResponse(
       messages, 
       claudeOptions, 
-      streamEnabled ? onToken : undefined
+      streamEnabled ? onToken : undefined,
+      provider
     );
     
     return fullResponse;
+  }
+
+  async sendMessage(
+    provider: string,
+    messages: ChatMessage[],
+    options: OnlineModelRequestOptions = {},
+    onToken?: (token: string) => boolean | void
+  ): Promise<string> {
+    const base = OnlineModelService.getBaseProvider(provider);
+    switch (base) {
+      case 'gemini':
+        return this.sendMessageToGemini(messages, options, onToken, provider);
+      case 'chatgpt':
+        return this.sendMessageToOpenAI(messages, options, onToken, provider);
+      case 'claude':
+        return this.sendMessageToClaude(messages, options, onToken, provider);
+      default:
+        throw new Error(`Unknown provider: ${provider}`);
+    }
   }
 
   async generateChatTitle(userMessage: string, provider: string): Promise<string> {
@@ -422,33 +497,16 @@ class OnlineModelService {
 
     try {
       let title = '';
-      
-      
-      switch (provider) {
-        case 'gemini':
-          try {
-            title = await this.sendMessageToGemini(titlePrompt, options);
-          } catch (error) {
-            if (error instanceof Error && error.message.includes('token limit')) {
-              const now = new Date();
-              const dateStr = now.toLocaleDateString();
-              const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-              return `Chat ${dateStr} ${timeStr}`;
-            }
-            throw error;
-          }
-          break;
-        case 'chatgpt':
-          title = await this.sendMessageToOpenAI(titlePrompt, options);
-          break;
-        case 'deepseek':
-          title = await this.sendMessageToDeepSeek(titlePrompt, options);
-          break;
-        case 'claude':
-          title = await this.sendMessageToClaude(titlePrompt, options);
-          break;
-        default:
-          throw new Error(`Unknown provider: ${provider}`);
+
+      const base = OnlineModelService.getBaseProvider(provider);
+      try {
+        title = await this.sendMessage(provider, titlePrompt, options);
+      } catch (error) {
+        if (base === 'gemini' && error instanceof Error && error.message.includes('token limit')) {
+          const now = new Date();
+          return `Chat ${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+        }
+        throw error;
       }
       
 

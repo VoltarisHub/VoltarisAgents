@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { modelDownloader } from '../services/ModelDownloader';
 
@@ -22,15 +22,17 @@ const DownloadContext = createContext<DownloadContextType | undefined>(undefined
 
 export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress>({});
+  const isLoadedRef = useRef(false);
 
   useEffect(() => {
     const loadSavedStates = async () => {
       try {
         const savedProgress = await AsyncStorage.getItem('download_progress');
+        let merged: DownloadProgress = {};
+
         if (savedProgress) {
           const parsedProgress = JSON.parse(savedProgress);
-          
-          const filteredProgress = Object.entries(parsedProgress).reduce((acc, [key, value]) => {
+          merged = Object.entries(parsedProgress).reduce((acc, [key, value]) => {
             if (key.startsWith('com.inferra.transfer.')) {
               return acc;
             }
@@ -50,11 +52,34 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             }
             return acc;
           }, {} as DownloadProgress);
-          
-          setDownloadProgress(filteredProgress);
         }
+
+        try {
+          const taskDownloads = await modelDownloader.getActiveDownloadsList();
+          for (const dl of taskDownloads) {
+            if (
+              dl.modelName &&
+              !dl.modelName.startsWith('com.inferra.transfer.') &&
+              dl.status !== 'completed' &&
+              dl.status !== 'failed' &&
+              dl.status !== 'cancelled' &&
+              !merged[dl.modelName]
+            ) {
+              merged[dl.modelName] = {
+                progress: dl.progress || 0,
+                bytesDownloaded: dl.bytesDownloaded || 0,
+                totalBytes: dl.totalBytes || 0,
+                status: dl.status || 'downloading',
+                downloadId: dl.downloadId || 0,
+              };
+            }
+          }
+        } catch (_) {}
+
+        setDownloadProgress(merged);
+        isLoadedRef.current = true;
       } catch (error) {
-        console.error('DownloadContext: Error loading saved states:', error);
+        isLoadedRef.current = true;
       }
     };
     
@@ -124,20 +149,43 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       });
     };
 
+    const handleProgress = (data: any) => {
+      if (!data.modelName || data.modelName.startsWith('com.inferra.transfer.')) {
+        return;
+      }
+      if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
+        return;
+      }
+      setDownloadProgress(prev => ({
+        ...prev,
+        [data.modelName]: {
+          progress: data.progress || 0,
+          bytesDownloaded: data.bytesDownloaded || 0,
+          totalBytes: data.totalBytes || 0,
+          status: data.status || 'downloading',
+          downloadId: data.downloadId || prev[data.modelName]?.downloadId || 0,
+          isPaused: prev[data.modelName]?.isPaused,
+        }
+      }));
+    };
+
     modelDownloader.on('downloadStarted', handleDownloadStarted);
     modelDownloader.on('downloadCompleted', handleDownloadCompleted);
     modelDownloader.on('downloadFailed', handleDownloadFailed);
     modelDownloader.on('downloadCancelled', handleDownloadCancelled);
+    modelDownloader.on('downloadProgress', handleProgress);
 
     return () => {
       modelDownloader.off('downloadStarted', handleDownloadStarted);
       modelDownloader.off('downloadCompleted', handleDownloadCompleted);
       modelDownloader.off('downloadFailed', handleDownloadFailed);
       modelDownloader.off('downloadCancelled', handleDownloadCancelled);
+      modelDownloader.off('downloadProgress', handleProgress);
     };
   }, []);
 
   useEffect(() => {
+    if (!isLoadedRef.current) return;
     const saveStates = async () => {
       try {
         if (Object.keys(downloadProgress).length > 0) {

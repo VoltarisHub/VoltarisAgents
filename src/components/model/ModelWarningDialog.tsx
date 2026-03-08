@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { Dialog, Portal, Button, Text } from 'react-native-paper';
+import { Text } from 'react-native-paper';
+import Dialog from '../Dialog';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
@@ -21,8 +22,12 @@ export const ModelWarningDialog: React.FC<ModelWarningDialogProps> = ({
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
   return (
-    <Portal>
-      <Dialog visible={visible} onDismiss={onCancel}>
+    <Dialog visible={visible} onDismiss={onCancel}
+      primaryButtonText="Continue"
+      onPrimaryPress={() => onAccept(dontShowAgain)}
+      secondaryButtonText="Cancel"
+      onSecondaryPress={onCancel}
+    >
         <Dialog.Title style={{ color: themeColors.text }}>
           Content Warning
         </Dialog.Title>
@@ -56,13 +61,7 @@ export const ModelWarningDialog: React.FC<ModelWarningDialogProps> = ({
             </Text>
           </TouchableOpacity>
         </Dialog.Content>
-        
-        <Dialog.Actions>
-          <Button onPress={onCancel}>Cancel</Button>
-          <Button onPress={() => onAccept(dontShowAgain)}>Continue</Button>
-        </Dialog.Actions>
       </Dialog>
-    </Portal>
   );
 };
 

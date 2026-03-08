@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
-import { Dialog, Portal, Button, Text as PaperText } from 'react-native-paper';
+import { Text as PaperText } from 'react-native-paper';
+import Dialog from '../Dialog';
 import UnifiedModelList from './UnifiedModelList';
 import CustomUrlDialog from '../CustomUrlDialog';
 import { DownloadableModel } from './DownloadableModelItem';
@@ -95,8 +96,10 @@ export const DownloadableModelsTab: React.FC<DownloadableModelsTabProps> = ({
         navigation={navigation}
       />
 
-      <Portal>
-        <Dialog visible={guidanceDialogVisible} onDismiss={() => setGuidanceDialogVisible(false)}>
+      <Dialog visible={guidanceDialogVisible} onDismiss={() => setGuidanceDialogVisible(false)}
+        buttonText="Got it!"
+        onClose={() => setGuidanceDialogVisible(false)}
+      >
           <Dialog.Title>Model Download Guidance</Dialog.Title>
           <Dialog.Content>
             <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
@@ -141,11 +144,7 @@ export const DownloadableModelsTab: React.FC<DownloadableModelsTabProps> = ({
               </PaperText>
             </ScrollView>
           </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setGuidanceDialogVisible(false)}>Got it!</Button>
-          </Dialog.Actions>
         </Dialog>
-      </Portal>
     </View>
   );
 };

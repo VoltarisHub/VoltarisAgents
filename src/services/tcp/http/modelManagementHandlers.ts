@@ -1,5 +1,5 @@
-import * as FileSystem from 'expo-file-system';
-import { llamaManager } from '../../../utils/LlamaManager';
+import { fs as FileSystem } from '../../fs';
+import { engineService } from '../../inference-engine-service';
 import { modelDownloader } from '../../ModelDownloader';
 import type { StoredModel } from '../../ModelDownloaderTypes';
 import { logger } from '../../../utils/logger';
@@ -20,10 +20,10 @@ export function createPsHandler(context: Context) {
     try {
       const items: any[] = [];
 
-      if (llamaManager.isInitialized()) {
-        const currentPath = llamaManager.getModelPath();
+      const currentPath = engineService.getActiveModelPath();
+      if (currentPath) {
         const models = await modelDownloader.getStoredModels();
-        const target = currentPath ? context.findStoredModel(currentPath, models) : null;
+        const target = context.findStoredModel(currentPath, models);
         const name = target?.name || context.activeModel?.name || (currentPath ? currentPath.split('/').pop() || 'model' : 'model');
         const size = target?.size || await context.getFileSize(currentPath);
         const started = context.activeModel?.startedAt || new Date().toISOString();

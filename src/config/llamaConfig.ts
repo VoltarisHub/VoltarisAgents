@@ -32,10 +32,20 @@ export const DEFAULT_SETTINGS: ModelSettings = {
   enableThinking: true,
 };
 export const LLAMA_INIT_CONFIG = {
-  use_mlock: true,
-  n_ctx: 6144,
+  use_mlock: false,
+  use_mmap: Platform.OS === 'android' ? 'smart' : 'true',
+  n_ctx: 2048,
   n_batch: 512,
-  n_threads: Platform.OS === 'ios' ? 6 : 4,
+  n_ubatch: 512,
+  n_parallel: 1,
+  n_threads: 4,
+  cache_type_k: 'f16',
+  cache_type_v: 'f16',
+  n_gpu_layers: 99,
+  flash_attn_type: Platform.OS === 'ios' ? 'auto' : 'off',
+  kv_unified: true,
+  image_max_tokens: 512,
+  devices: undefined,
   embedding: true,
   ctx_shift: false,
 };

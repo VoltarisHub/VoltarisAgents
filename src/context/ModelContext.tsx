@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import * as FileSystem from 'expo-file-system';
+import { fs as FileSystem } from '../services/fs';
 import { llamaManager } from '../utils/LlamaManager';
+import { engineService } from '../services/inference-engine-service';
 import { Snackbar, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from './ThemeContext';
@@ -53,13 +54,28 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setIsModelLoading(true);
     
     try {
-      const fileInfo = await FileSystem.getInfoAsync(modelPath);
-      if (!fileInfo.exists) {
-        console.log('model_file_missing', modelPath);
-        showSnackbar('Model file not found', 'error');
-        modelDownloader.refresh();
+      const storedModels = await modelDownloader.getStoredModels();
+      const storedEntry = storedModels.find(m => m.path === modelPath);
+      const engine = engineService.getEngineForModel(modelPath, storedEntry?.modelFormat);
+      const enabled = engineService.getEnabled();
+
+      if (!enabled[engine]) {
+        showSnackbar(`${engine === 'llama' ? 'Llama.cpp' : 'MLX'} engine is disabled`, 'error');
         setIsModelLoading(false);
         return false;
+      }
+
+      const isMlxModel = engine === 'mlx';
+
+      if (!isMlxModel) {
+        const fileInfo = await FileSystem.getInfoAsync(modelPath);
+        if (!fileInfo.exists) {
+          console.log('model_file_missing', modelPath);
+          showSnackbar('Model file not found', 'error');
+          modelDownloader.refresh();
+          setIsModelLoading(false);
+          return false;
+        }
       }
       
       if (mmProjectorPath) {
@@ -70,27 +86,30 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
       
-      const success = await llamaManager.loadModel(modelPath, mmProjectorPath);
-      
-      if (success) {
-        setSelectedModelPath(modelPath);
-        updateProjectorState();
-        
-        const modelName = modelPath.split('/').pop() || 'Model';
-        const multimodalText = mmProjectorPath ? ' (Multimodal)' : '';
-        showSnackbar(`${modelName}${multimodalText} loaded successfully`);
-        
-
-        return true;
-      } else {
-        showSnackbar('Failed to load model', 'error');
-        setSelectedModelPath(null);
-        setSelectedProjectorPath(null);
-        setIsMultimodalEnabled(false);
-        return false;
+      if (engine === 'mlx' && mmProjectorPath) {
+        mmProjectorPath = undefined;
       }
+
+      await engineService.initModel(modelPath, mmProjectorPath, storedEntry?.modelFormat);
+      
+      setSelectedModelPath(modelPath);
+      updateProjectorState();
+      
+      const modelName = isMlxModel ? modelPath : (modelPath.split('/').pop() || 'Model');
+      const engineLabel = engine === 'mlx' ? ' (MLX)' : ' (Llama.cpp)';
+      const multimodalText = mmProjectorPath ? ' (Multimodal)' : '';
+
+      return true;
     } catch (error) {
-      showSnackbar('Error loading model', 'error');
+      console.log('model_load_error', error);
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      
+      if (errorMsg.includes('mlx_model_not_downloaded')) {
+        showSnackbar('MLX model not found. Please download it first.', 'error');
+      } else {
+        showSnackbar('Error loading model', 'error');
+      }
+      
       setSelectedModelPath(null);
       setSelectedProjectorPath(null);
       setIsMultimodalEnabled(false);
@@ -102,7 +121,7 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const unloadModel = async (silent: boolean = false): Promise<void> => {
     try {
-      await llamaManager.unloadModel();
+      await engineService.release();
     } catch (error) {
       llamaManager.emergencyCleanup();
     } finally {

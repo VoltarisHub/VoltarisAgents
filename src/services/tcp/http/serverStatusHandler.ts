@@ -1,4 +1,4 @@
-import { llamaManager } from '../../../utils/LlamaManager';
+import { engineService } from '../../inference-engine-service';
 import { RAGService } from '../../rag/RAGService';
 import { logger } from '../../../utils/logger';
 import type { JsonResponder, StatusHandler } from './apiTypes';
@@ -20,8 +20,8 @@ export function createServerStatusHandler(context: Context): StatusHandler {
     }
 
     const status = context.getStatus();
-    const modelLoaded = llamaManager.isInitialized();
-    const modelPath = llamaManager.getModelPath();
+    const modelPath = engineService.getActiveModelPath();
+    const modelLoaded = Boolean(modelPath);
 
     context.respond(socket, 200, {
       server: status,

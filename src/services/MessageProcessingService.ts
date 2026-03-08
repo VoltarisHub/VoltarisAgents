@@ -1,6 +1,6 @@
 import { ChatMessage } from '../utils/ChatManager';
-import { llamaManager } from '../utils/LlamaManager';
-import { onlineModelService } from './OnlineModelService';
+import { engineService } from './inference-engine-service';
+import { onlineModelService, OnlineModelService } from './OnlineModelService';
 import chatManager from '../utils/ChatManager';
 import { generateRandomId } from '../utils/homeScreenUtils';
 import { appleFoundationService } from './AppleFoundationService';
@@ -20,7 +20,7 @@ export interface MessageProcessingCallbacks {
   saveMessages: (messages: ChatMessage[]) => void;
   saveMessagesDebounced: { cancel: () => void };
   updateMessageContentDebounced: (messageId: string, content: string, thinking: string, stats: any) => void;
-  handleApiError: (error: unknown, provider: 'Gemini' | 'OpenAI' | 'DeepSeek' | 'Claude') => void;
+  handleApiError: (error: unknown, provider: 'Gemini' | 'OpenAI' | 'Claude') => void;
 }
 
 export class MessageProcessingService {
@@ -43,18 +43,33 @@ export class MessageProcessingService {
       this.callbacks.setIsRegenerating(true);
       
       const currentMessages = currentChat.messages;
-  const isOnlineModel = activeProvider === 'gemini' || activeProvider === 'chatgpt' || activeProvider === 'deepseek' || activeProvider === 'claude';
-  const isAppleFoundation = activeProvider === 'apple-foundation';
-      
-      const systemPrompt = settings.systemPrompt || 'You are a helpful AI assistant.';
-      const processedMessages = currentMessages.some(msg => msg.role === 'system')
-        ? currentMessages
-        : [{ role: 'system', content: systemPrompt, id: 'system-prompt' }, ...currentMessages];
-      const skipRag = this.shouldSkipRag(processedMessages);
+      const isOnlineModel = !!activeProvider && ['gemini','chatgpt','claude'].includes(OnlineModelService.getBaseProvider(activeProvider));
+      const isAppleFoundation = activeProvider === 'apple-foundation';
+
+      const fallbackSystemPrompt = settings.systemPrompt || 'You are a helpful AI assistant.';
+      let systemPrompt = fallbackSystemPrompt;
+      if (isOnlineModel && activeProvider) {
+        const providerSystemInstruction = await onlineModelService.getSystemInstruction(activeProvider);
+        if (providerSystemInstruction && providerSystemInstruction.trim()) {
+          systemPrompt = providerSystemInstruction.trim();
+        }
+      }
+
+      const processedMessages = isOnlineModel
+        ? [{ role: 'system', content: systemPrompt, id: 'system-prompt' }, ...currentMessages.filter(msg => msg.role !== 'system')]
+        : currentMessages.some(msg => msg.role === 'system')
+          ? currentMessages
+          : [{ role: 'system', content: systemPrompt, id: 'system-prompt' }, ...currentMessages];
+      const skipRag = this.shouldSkipRag(processedMessages) || await this.shouldSkipRagForInput(processedMessages);
+      const responderModelName = await this.resolveResponderModelName(activeProvider);
+      if (responderModelName) {
+        console.log('resp_model', responderModelName);
+      }
       
       const assistantMessage: Omit<ChatMessage, 'id'> = {
         role: 'assistant',
         content: '',
+        modelName: responderModelName,
         stats: {
           duration: 0,
           tokens: 0,
@@ -62,7 +77,12 @@ export class MessageProcessingService {
       };
       
       await chatManager.addMessage(assistantMessage);
-      const lastMessage = chatManager.getCurrentChat()?.messages.slice(-1)[0];
+      const updatedChat = chatManager.getCurrentChat();
+      if (!updatedChat) return;
+
+      this.callbacks.setMessages([...updatedChat.messages]);
+
+      const lastMessage = updatedChat.messages.slice(-1)[0];
       if (!lastMessage) return;
       
       const messageId = lastMessage.id;
@@ -136,7 +156,7 @@ export class MessageProcessingService {
   }
 
   private async processOnlineModel(
-    activeProvider: 'gemini' | 'chatgpt' | 'deepseek' | 'claude',
+    activeProvider: string,
     processedMessages: any[],
     settings: any,
     messageId: string,
@@ -309,28 +329,7 @@ export class MessageProcessingService {
     };
 
     try {
-      switch (activeProvider) {
-        case 'gemini':
-          await onlineModelService.sendMessageToGemini(messageParams, apiParams, legacyStreamCallback);
-          break;
-        case 'chatgpt':
-          await onlineModelService.sendMessageToOpenAI(messageParams, apiParams, legacyStreamCallback);
-          break;
-        case 'deepseek':
-          await onlineModelService.sendMessageToDeepSeek(messageParams, apiParams, legacyStreamCallback);
-          break;
-        case 'claude':
-          await onlineModelService.sendMessageToClaude(messageParams, apiParams, legacyStreamCallback);
-          break;
-        default:
-          await chatManager.updateMessageContent(
-            messageId,
-            `This model provider (${activeProvider}) is not yet implemented.`,
-            '',
-            { duration: 0, tokens: 0 }
-          );
-          return;
-      }
+      await onlineModelService.sendMessage(activeProvider, messageParams, apiParams, legacyStreamCallback);
     } catch (error) {
       this.callbacks.handleApiError(error, this.getProviderDisplayName(activeProvider));
       
@@ -498,11 +497,6 @@ export class MessageProcessingService {
 
     if (!usedRAG) {
       try {
-        console.log('apple_no_rag_messages', JSON.stringify(baseMessages.map(m => ({ 
-          role: m.role, 
-          contentLength: m.content.length,
-          contentPreview: m.content.substring(0, 200)
-        }))));
         const stream = appleFoundationService.streamResponse(
           baseMessages.map(msg => ({ role: msg.role, content: msg.content })),
           {
@@ -737,7 +731,7 @@ export class MessageProcessingService {
     if (!skipRag) {
       try {
         const ragEnabled = await RAGService.isEnabled();
-        if (ragEnabled && llamaManager.isInitialized()) {
+        if (ragEnabled && engineService.mgr().ready()) {
           if (!RAGService.isReady()) {
             await RAGService.initialize('local');
           }
@@ -760,15 +754,12 @@ export class MessageProcessingService {
     }
 
     if (!usedRAG) {
-      console.log('local_no_rag_messages', JSON.stringify(baseMessages.map(m => ({ 
-        role: m.role, 
-        contentLength: m.content.length,
-        contentPreview: m.content.substring(0, 200)
-      }))));
-      await llamaManager.generateResponse(
-        baseMessages,
-        streamCallback,
-        settings
+      await engineService.mgr().gen(
+        baseMessages as any,
+        {
+          onToken: streamCallback,
+          settings
+        }
       );
     }
 
@@ -793,14 +784,46 @@ export class MessageProcessingService {
     }
   }
 
-  private getProviderDisplayName(provider: string): 'Gemini' | 'OpenAI' | 'DeepSeek' | 'Claude' {
-    switch (provider) {
+  private getProviderDisplayName(provider: string): 'Gemini' | 'OpenAI' | 'Claude' {
+    const base = OnlineModelService.getBaseProvider(provider);
+    switch (base) {
       case 'gemini': return 'Gemini';
       case 'chatgpt': return 'OpenAI';
-      case 'deepseek': return 'DeepSeek';
       case 'claude': return 'Claude';
       default: return 'OpenAI';
     }
+  }
+
+  private async resolveResponderModelName(activeProvider: ProviderType | null): Promise<string | undefined> {
+    if (!activeProvider || activeProvider === 'local') {
+      const activePath = engineService.getActiveModelPath();
+      if (!activePath) {
+        return undefined;
+      }
+      return this.getLocalModelName(activePath);
+    }
+
+    if (activeProvider === 'apple-foundation') {
+      return 'Apple Foundation';
+    }
+
+    const configured = await onlineModelService.getModelName(activeProvider);
+    if (configured && configured.trim()) {
+      return configured.trim();
+    }
+
+    const fallback = onlineModelService.getDefaultModelName(activeProvider);
+    if (fallback && fallback.trim()) {
+      return fallback.trim();
+    }
+
+    const base = OnlineModelService.getBaseProvider(activeProvider);
+    return base || undefined;
+  }
+
+  private getLocalModelName(path: string): string {
+    const file = path.split('/').pop() || path;
+    return file.replace(/\.(gguf|mlx)$/i, '');
   }
 
   private shouldSkipRag(messages: Array<{ role: string; content: string }>): boolean {
@@ -819,6 +842,53 @@ export class MessageProcessingService {
         return false;
       }
     }
+    return false;
+  }
+
+  private async shouldSkipRagForInput(messages: Array<{ role: string; content: string }>): Promise<boolean> {
+    let lastUserText = '';
+
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const entry = messages[index];
+      if (entry.role !== 'user') {
+        continue;
+      }
+
+      try {
+        const parsed = JSON.parse(entry.content);
+        if (parsed?.type === 'ocr_result') {
+          lastUserText = String(parsed?.userPrompt || '').trim();
+        } else if (parsed?.type === 'file_upload') {
+          lastUserText = String(parsed?.userContent || '').trim();
+        } else {
+          lastUserText = String(entry.content || '').trim();
+        }
+      } catch {
+        lastUserText = String(entry.content || '').trim();
+      }
+      break;
+    }
+
+    const compactText = lastUserText.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+    const tokenCount = compactText.length > 0 ? compactText.split(/\s+/).length : 0;
+
+    if (compactText.length <= 4 || tokenCount <= 1) {
+      return true;
+    }
+
+    if (/^(hi|hey|hello|yo|sup|hola|hii+)$/.test(compactText)) {
+      return true;
+    }
+
+    try {
+      const status = await RAGService.getStatus();
+      if (!status.enabled || status.documentCount <= 0) {
+        return true;
+      }
+    } catch {
+      return true;
+    }
+
     return false;
   }
 }

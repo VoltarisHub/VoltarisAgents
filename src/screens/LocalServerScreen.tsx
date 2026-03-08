@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import QRCodeStyled from 'react-native-qrcode-styled';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Dialog, Portal, Button } from 'react-native-paper';
+import Dialog from '../components/Dialog';
 import { useTheme } from '../context/ThemeContext';
 import { useRemoteModel } from '../context/RemoteModelContext';
 import { theme } from '../constants/theme';
@@ -615,26 +615,14 @@ export default function LocalServerScreen() {
         </SettingsSection>
       </ScrollView>
 
-      <Portal>
-        <Dialog 
-          visible={copiedDialogVisible} 
-          onDismiss={() => setCopiedDialogVisible(false)}
-          style={{ backgroundColor: themeColors.cardBackground }}
-        >
-          <Dialog.Title style={{ color: themeColors.text }}>Copied</Dialog.Title>
-          <Dialog.Content>
-            <Text style={{ color: themeColors.text }}>Server URL copied to clipboard</Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button 
-              onPress={() => setCopiedDialogVisible(false)}
-              textColor={themeColors.primary}
-            >
-              OK
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <Dialog
+        visible={copiedDialogVisible}
+        onDismiss={() => setCopiedDialogVisible(false)}
+        title="Copied"
+        description="Server URL copied to clipboard"
+        buttonText="OK"
+        onClose={() => setCopiedDialogVisible(false)}
+      />
     </View>
   );
 }

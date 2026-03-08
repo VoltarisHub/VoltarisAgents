@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Dialog, Portal, Button } from 'react-native-paper';
+import Dialog from '../Dialog';
 import { useTheme } from '../../context/ThemeContext';
 
 interface AITermsDialogProps {
@@ -18,15 +18,18 @@ const AITermsDialog: React.FC<AITermsDialogProps> = ({
   const { theme: currentTheme } = useTheme();
 
   return (
-    <Portal>
-      <Dialog
-        visible={visible}
-        onDismiss={onDismiss}
-        style={{
-          backgroundColor: currentTheme === 'dark' ? '#1E1E1E' : '#FFFFFF',
-          maxHeight: '80%'
-        }}
-      >
+    <Dialog
+      visible={visible}
+      onDismiss={onDismiss}
+      style={{
+        backgroundColor: currentTheme === 'dark' ? '#1E1E1E' : '#FFFFFF',
+        maxHeight: '80%'
+      }}
+      primaryButtonText="I Understand"
+      onPrimaryPress={onAccept}
+      secondaryButtonText="Cancel"
+      onSecondaryPress={onDismiss}
+    >
         <Dialog.Title style={{ 
           color: currentTheme === 'dark' ? '#FFFFFF' : '#000000',
           textAlign: 'center'
@@ -90,25 +93,7 @@ const AITermsDialog: React.FC<AITermsDialogProps> = ({
       
           </ScrollView>
         </Dialog.Content>
-        
-        <Dialog.Actions style={styles.actions}>
-          <Button 
-            onPress={onDismiss}
-            textColor={currentTheme === 'dark' ? '#CCCCCC' : '#666666'}
-          >
-            Cancel
-          </Button>
-          <Button 
-            onPress={onAccept}
-            textColor={'#ffffff'}
-            mode="contained"
-            buttonColor={currentTheme === 'dark' ? '#BB86FC' : '#6200EA'}
-          >
-            I Understand
-          </Button>
-        </Dialog.Actions>
-      </Dialog>
-    </Portal>
+    </Dialog>
   );
 };
 

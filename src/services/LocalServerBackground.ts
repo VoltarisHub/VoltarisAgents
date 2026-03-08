@@ -1,4 +1,5 @@
-import { Platform, NativeModules } from 'react-native';
+import { Platform } from 'react-native';
+import { requireNativeModule } from 'expo-modules-core';
 
 interface AndroidModule {
   startForegroundServer(port: number, url?: string): Promise<boolean>;
@@ -14,7 +15,14 @@ type BackgroundStatus = {
 
 type StatusListener = (status: BackgroundStatus) => void;
 
-const androidNativeModule = NativeModules.LocalServerBridge as AndroidModule | undefined;
+let androidNativeModule: AndroidModule | undefined;
+if (Platform.OS === 'android') {
+  try {
+    androidNativeModule = requireNativeModule('LocalServer') as AndroidModule;
+  } catch (_) {
+    androidNativeModule = undefined;
+  }
+}
 
 class LocalServerBackground {
   private listeners = new Set<StatusListener>();

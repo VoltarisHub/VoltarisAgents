@@ -13,13 +13,13 @@ import { LlamaRnEmbeddings } from './LlamaRnEmbeddings';
 import { AppleRagEmbeddings } from './AppleRagEmbeddings';
 import { OpenAIEmbeddings } from './OpenAIEmbeddings';
 import { GeminiEmbeddings } from './GeminiEmbeddings';
-import { DeepSeekEmbeddings } from './DeepSeekEmbeddings';
 import { ClaudeEmbeddings } from './ClaudeEmbeddings';
 import { LlamaRnLLM } from './LlamaRnLLM';
 import { OnlineModelLLM } from './OnlineModelLLM';
 import { AppleFoundationLLM } from './AppleFoundationLLM';
 import type { ModelSettings } from '../ModelSettingsService';
 import { llamaManager } from '../../utils/LlamaManager';
+import { engineService } from '../inference-engine-service';
 import type { ProviderType } from '../ModelManagementService';
 
 const RAG_ENABLED_KEY = '@inferra/rag/enabled';
@@ -115,7 +115,6 @@ class RAGServiceClass {
     const isRemote =
       resolvedProvider === 'gemini' ||
       resolvedProvider === 'chatgpt' ||
-      resolvedProvider === 'deepseek' ||
       resolvedProvider === 'claude';
     const isAppleFoundation = resolvedProvider === 'apple-foundation';
 
@@ -138,7 +137,7 @@ class RAGServiceClass {
     if (isAppleFoundation) {
       this.llm = new AppleFoundationLLM();
     } else if (isRemote) {
-      const remoteProvider = resolvedProvider as 'gemini' | 'chatgpt' | 'deepseek' | 'claude';
+      const remoteProvider = resolvedProvider as 'gemini' | 'chatgpt' | 'claude';
       this.llm = new OnlineModelLLM(remoteProvider);
     } else {
       this.llm = new LlamaRnLLM();
@@ -431,27 +430,39 @@ class RAGServiceClass {
   }
 
   private async ensureEmbeddingSupport(): Promise<void> {
-    if (!llamaManager.isInitialized()) {
+    if (!engineService.ready()) {
       throw new Error('Model not initialized');
     }
 
     console.log('rag_verify_embeddings');
     try {
-      await llamaManager.generateEmbedding('__rag_probe__');
+      const embedFn = engineService.mgr().embed;
+      if (!embedFn) {
+        throw new Error('Embeddings not supported by current engine');
+      }
+      await embedFn('__rag_probe__');
       console.log('rag_embeddings_ok');
       return;
     } catch (error) {
       console.log('rag_embeddings_failed', error instanceof Error ? error.message : 'unknown');
-      const modelPath = llamaManager.getModelPath();
+      const modelPath = engineService.getActiveModelPath();
       if (!modelPath) {
         throw error instanceof Error ? error : new Error('Unable to generate embeddings');
       }
 
+      if (engineService.getEngineForModel(modelPath) !== 'llama') {
+        throw error instanceof Error ? error : new Error('Embeddings not supported by current engine');
+      }
+
       console.log('rag_reload_model');
       const projectorPath = llamaManager.getMultimodalProjectorPath();
-      await llamaManager.loadModel(modelPath, projectorPath ?? undefined);
+      await engineService.initModel(modelPath, projectorPath ?? undefined);
       try {
-        await llamaManager.generateEmbedding('__rag_probe__');
+        const embedFn2 = engineService.mgr().embed;
+        if (!embedFn2) {
+          throw new Error('Embeddings not supported by current engine');
+        }
+        await embedFn2('__rag_probe__');
         console.log('rag_embeddings_ok_after_reload');
       } catch (finalError) {
         console.log('rag_embeddings_unsupported');
@@ -466,8 +477,6 @@ class RAGServiceClass {
     switch (provider) {
       case 'gemini':
         return new GeminiEmbeddings();
-      case 'deepseek':
-        return new DeepSeekEmbeddings();
       case 'claude':
         return new ClaudeEmbeddings();
       case 'chatgpt':
