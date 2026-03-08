@@ -134,10 +134,11 @@ export default function TextFileViewerModal({
       transparent={false}
       onRequestClose={onClose}
     >
-      <KeyboardAvoidingView 
+      <View style={{ flex: 1, backgroundColor: isDark ? '#1a1a1a' : '#ffffff' }}>
+      <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#121212' : '#fff' }]}>
           <View style={styles.header}>
@@ -275,6 +276,7 @@ export default function TextFileViewerModal({
           </View>
         </SafeAreaView>
       </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
