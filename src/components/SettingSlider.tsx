@@ -63,6 +63,9 @@ export default function SettingSlider({
           <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
             {description}
           </Text>
+          {disabled && (
+            <Text style={styles.unsupportedText}>Not available for this engine</Text>
+          )}
             {!isDefaultValue && !disabled && (
             <TouchableOpacity
               onPress={handleReset}
@@ -116,6 +119,12 @@ const styles = StyleSheet.create({
   settingText: {
     fontSize: 16,
     fontWeight: '500',
+  },
+  unsupportedText: {
+    fontSize: 11,
+    color: '#FF9500',
+    fontWeight: '500',
+    marginTop: 4,
   },
   valueText: {
     fontSize: 16,

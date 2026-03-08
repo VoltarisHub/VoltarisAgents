@@ -102,6 +102,9 @@ const ModelSettingsControls = ({
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
               Enable Jinja templating for chat formatting. Better compatibility with modern models.
             </Text>
+            {!caps.jinja && (
+              <Text style={styles.unsupportedText}>Not available for this engine</Text>
+            )}
             {(modelSettings.jinja ?? false) !== (defaultSettings.jinja ?? false) && (
               <TouchableOpacity
                 onPress={() => onSettingsChange({ jinja: defaultSettings.jinja ?? false })}
@@ -143,6 +146,9 @@ const ModelSettingsControls = ({
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
               Enforce specific grammar rules to ensure generated text follows a particular structure.
             </Text>
+            {!caps.grammar && (
+              <Text style={styles.unsupportedText}>Not available for this engine</Text>
+            )}
             {defaultSettings.grammar !== undefined && isStringDifferent(modelSettings.grammar, defaultSettings.grammar) && (
               <TouchableOpacity
                 onPress={() => onSettingsChange({ grammar: defaultSettings.grammar })}
@@ -260,6 +266,12 @@ const styles = StyleSheet.create({
   resetText: {
     fontSize: 12,
     fontWeight: '500',
+  },
+  unsupportedText: {
+    fontSize: 11,
+    color: '#FF9500',
+    fontWeight: '500',
+    marginTop: 4,
   },
   disabledSettingItem: {
     opacity: 0.5,
