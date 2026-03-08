@@ -329,7 +329,6 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 10,
-    backgroundColor: 'rgba(74, 6, 96, 0.1)',
     minWidth: 44,
     alignItems: 'center',
     justifyContent: 'center',
@@ -337,7 +336,6 @@ export const styles = StyleSheet.create({
   initValueBadgeText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#4a0660',
   },
   projectorNameContainer: {
     flexDirection: 'row',

@@ -795,6 +795,9 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     }, [modalVisible]);
 
     const badgeConfig = getConnectionBadgeConfig(selectedModelPath, currentTheme);
+    const initBadgeBg = currentTheme === 'dark' ? 'rgba(156,56,192,0.25)' : 'rgba(74,6,96,0.1)';
+    const initBadgeColor = getThemeAwareColor('#4a0660', currentTheme);
+    const initDividerBg = currentTheme === 'dark' ? 'rgba(156,56,192,0.2)' : 'rgba(74,6,96,0.1)';
 
     return (
       <>
@@ -1008,7 +1011,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
                       <View style={showInitPanel ? undefined : { height: 0, overflow: 'hidden' }}>
                         <View style={styles.initExpandedContent}>
-                          <View style={styles.initDivider} />
+                          <View style={[styles.initDivider, { backgroundColor: initDividerBg }]} />
 
                           <View style={styles.initSliderItem}>
                             <View style={styles.initSliderHeader}>
@@ -1016,8 +1019,8 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                                 <Text style={{ fontWeight: '600', color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>Context Window</Text>
                                 <Text style={[styles.initSliderDesc, { color: currentTheme === 'dark' ? '#ccc' : themeColors.secondaryText }]}>Max tokens the model remembers</Text>
                               </View>
-                              <View style={styles.initValueBadge}>
-                                <Text style={styles.initValueBadgeText}>{initOverrides.n_ctx}</Text>
+                              <View style={[styles.initValueBadge, { backgroundColor: initBadgeBg }]}>
+                                <Text style={[styles.initValueBadgeText, { color: initBadgeColor }]}>{initOverrides.n_ctx}</Text>
                               </View>
                             </View>
                             <Slider
@@ -1037,8 +1040,8 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                                 <Text style={{ fontWeight: '600', color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>Batch Size</Text>
                                 <Text style={[styles.initSliderDesc, { color: currentTheme === 'dark' ? '#ccc' : themeColors.secondaryText }]}>Tokens processed per step</Text>
                               </View>
-                              <View style={styles.initValueBadge}>
-                                <Text style={styles.initValueBadgeText}>{initOverrides.n_batch}</Text>
+                              <View style={[styles.initValueBadge, { backgroundColor: initBadgeBg }]}>
+                                <Text style={[styles.initValueBadgeText, { color: initBadgeColor }]}>{initOverrides.n_batch}</Text>
                               </View>
                             </View>
                             <Slider
@@ -1058,8 +1061,8 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                                 <Text style={{ fontWeight: '600', color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>Parallel Sequences</Text>
                                 <Text style={[styles.initSliderDesc, { color: currentTheme === 'dark' ? '#ccc' : themeColors.secondaryText }]}>Concurrent inference streams</Text>
                               </View>
-                              <View style={styles.initValueBadge}>
-                                <Text style={styles.initValueBadgeText}>{initOverrides.n_parallel}</Text>
+                              <View style={[styles.initValueBadge, { backgroundColor: initBadgeBg }]}>
+                                <Text style={[styles.initValueBadgeText, { color: initBadgeColor }]}>{initOverrides.n_parallel}</Text>
                               </View>
                             </View>
                             <Slider
@@ -1079,8 +1082,8 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                                 <Text style={{ fontWeight: '600', color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>CPU Threads</Text>
                                 <Text style={[styles.initSliderDesc, { color: currentTheme === 'dark' ? '#ccc' : themeColors.secondaryText }]}>Thread count for computation</Text>
                               </View>
-                              <View style={styles.initValueBadge}>
-                                <Text style={styles.initValueBadgeText}>{initOverrides.n_threads}</Text>
+                              <View style={[styles.initValueBadge, { backgroundColor: initBadgeBg }]}>
+                                <Text style={[styles.initValueBadgeText, { color: initBadgeColor }]}>{initOverrides.n_threads}</Text>
                               </View>
                             </View>
                             <Slider
@@ -1100,8 +1103,8 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                                 <Text style={{ fontWeight: '600', color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>GPU Offload Layers</Text>
                                 <Text style={[styles.initSliderDesc, { color: currentTheme === 'dark' ? '#ccc' : themeColors.secondaryText }]}>Layers offloaded to GPU</Text>
                               </View>
-                              <View style={styles.initValueBadge}>
-                                <Text style={styles.initValueBadgeText}>{initOverrides.n_gpu_layers}</Text>
+                              <View style={[styles.initValueBadge, { backgroundColor: initBadgeBg }]}>
+                                <Text style={[styles.initValueBadgeText, { color: initBadgeColor }]}>{initOverrides.n_gpu_layers}</Text>
                               </View>
                             </View>
                             <Slider
