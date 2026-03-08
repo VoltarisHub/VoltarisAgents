@@ -38,6 +38,7 @@ interface DownloadableModelItemProps {
   isDownloaded: boolean;
   isDownloading: boolean;
   isInitializing: boolean;
+  alwaysEnableDownload?: boolean;
   downloadProgress?: {
     progress: number;
     bytesDownloaded: number;
@@ -79,6 +80,7 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
   isDownloaded,
   isDownloading,
   isInitializing,
+  alwaysEnableDownload = false,
   downloadProgress,
   onDownload,
   onPress,
@@ -168,10 +170,10 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
                 style={[
                   styles.downloadButton, 
                   { backgroundColor: themeColors.primary },
-                  (isDownloading || isInitializing || isDownloaded) && { opacity: 0.5 }
+                  (isDownloading || isInitializing || (!alwaysEnableDownload && isDownloaded)) && { opacity: 0.5 }
                 ]}
                 onPress={() => onDownload(model)}
-                disabled={isDownloading || isInitializing || isDownloaded}
+                disabled={isDownloading || isInitializing || (!alwaysEnableDownload && isDownloaded)}
               >
                 <MaterialCommunityIcons 
                   name={

@@ -46,6 +46,7 @@ export const HuggingFaceModelsList: React.FC<HuggingFaceModelsListProps> = ({
               isDownloaded={isDownloaded}
               isDownloading={false}
               isInitializing={false}
+              alwaysEnableDownload
               onDownload={() => onModelPress(hfModel)}
               onPress={() => onModelPress(hfModel)}
             />
