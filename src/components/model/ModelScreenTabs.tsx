@@ -20,6 +20,10 @@ export const ModelScreenTabs: React.FC<ModelScreenTabsProps> = ({
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
 
+  const handlePress = (tab: TabType) => {
+    requestAnimationFrame(() => onTabPress(tab));
+  };
+
   return (
     <View style={styles.tabContainer}>
       <View style={[styles.segmentedControl, { backgroundColor: themeColors.borderColor }]}>
@@ -30,7 +34,7 @@ export const ModelScreenTabs: React.FC<ModelScreenTabsProps> = ({
             activeTab === 'stored' && styles.activeSegment,
             activeTab === 'stored' && { backgroundColor: themeColors.primary }
           ]}
-          onPress={() => onTabPress('stored')}
+          onPress={() => handlePress('stored')}
         >
           <MaterialCommunityIcons 
             name="folder" 
@@ -52,7 +56,7 @@ export const ModelScreenTabs: React.FC<ModelScreenTabsProps> = ({
             activeTab === 'downloadable' && styles.activeSegment,
             activeTab === 'downloadable' && { backgroundColor: themeColors.primary }
           ]}
-          onPress={() => onTabPress('downloadable')}
+          onPress={() => handlePress('downloadable')}
         >
           <MaterialCommunityIcons 
             name="cloud-download" 
@@ -75,7 +79,7 @@ export const ModelScreenTabs: React.FC<ModelScreenTabsProps> = ({
               activeTab === 'remote' && styles.activeSegment,
               activeTab === 'remote' && { backgroundColor: themeColors.primary }
             ]}
-            onPress={() => onTabPress('remote')}
+            onPress={() => handlePress('remote')}
           >
             <MaterialCommunityIcons 
               name="cloud" 
