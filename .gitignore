@@ -50,7 +50,7 @@ firebaserc
 *.cer
 *.cert
 *.crt
-ios/
+/ios/
 *.xcworkspace
 *.xcuserstate
 *.pbxuser
@@ -68,7 +68,7 @@ ios/
 *.jks
 *.keystore
 !debug.keystore
-android/
+/android/
 
 # API Keys & Secrets - CRITICAL SECURITY
 **/secrets.json
