@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Animated } from 'react-native';
-import { CompositeNavigationProp } from '@react-navigation/native';
+import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Animated, Keyboard } from 'react-native';
+import { CompositeNavigationProp, useFocusEffect } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, TabParamList } from '../types/navigation';
@@ -70,8 +70,19 @@ export default function ModelScreen({ navigation, route }: ModelScreenProps) {
   };
 
   const handleTabPress = (tab: TabType) => {
+    if (tab !== 'remote') {
+      Keyboard.dismiss();
+    }
     logic.handleTabPress(tab, showDialog, hideDialog);
   };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      return () => {
+        Keyboard.dismiss();
+      };
+    }, [])
+  );
 
   const handleDelete = (model: StoredModel) => {
     showDialog(

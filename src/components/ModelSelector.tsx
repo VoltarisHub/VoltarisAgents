@@ -967,13 +967,20 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                 stickySectionHeadersEnabled={true}
                 ListHeaderComponent={
                   <View>
-                    <View style={styles.initPanel}>
+                    <View style={[styles.initPanel, { backgroundColor: currentTheme === 'dark' ? 'rgba(74,6,96,0.08)' : 'rgba(74,6,96,0.03)', borderColor: currentTheme === 'dark' ? 'rgba(156,56,192,0.2)' : 'rgba(74,6,96,0.12)' }]}>
                       <TouchableOpacity
                         style={styles.initPanelToggle}
                         onPress={() => setShowInitPanel(v => !v)}
                         activeOpacity={0.7}
                       >
-                        <Text style={[styles.initPanelToggleLabel, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>Load Model Settings</Text>
+                        <View style={styles.initPanelToggleLabelRow}>
+                          <MaterialCommunityIcons
+                            name="tune"
+                            size={16}
+                            color={getThemeAwareColor('#4a0660', currentTheme)}
+                          />
+                          <Text style={[styles.initPanelToggleLabel, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>Runtime Settings</Text>
+                        </View>
                         <View style={styles.initPanelActions}>
                           {showInitPanel && (
                             <TouchableOpacity
@@ -986,7 +993,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                             >
                               <MaterialCommunityIcons
                                 name="restore"
-                                size={16}
+                                size={15}
                                 color={getThemeAwareColor('#4a0660', currentTheme)}
                               />
                             </TouchableOpacity>
@@ -1000,10 +1007,18 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                       </TouchableOpacity>
 
                       <View style={showInitPanel ? undefined : { height: 0, overflow: 'hidden' }}>
+                        <View style={styles.initExpandedContent}>
+                          <View style={styles.initDivider} />
+
                           <View style={styles.initSliderItem}>
                             <View style={styles.initSliderHeader}>
-                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>Context Window</Text>
-                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>{initOverrides.n_ctx}</Text>
+                              <View style={styles.initSliderLabelGroup}>
+                                <Text style={{ fontWeight: '600', color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>Context Window</Text>
+                                <Text style={[styles.initSliderDesc, { color: currentTheme === 'dark' ? '#ccc' : themeColors.secondaryText }]}>Max tokens the model remembers</Text>
+                              </View>
+                              <View style={styles.initValueBadge}>
+                                <Text style={styles.initValueBadgeText}>{initOverrides.n_ctx}</Text>
+                              </View>
                             </View>
                             <Slider
                               minimumValue={512}
@@ -1018,8 +1033,13 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
                           <View style={styles.initSliderItem}>
                             <View style={styles.initSliderHeader}>
-                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>Batch Size</Text>
-                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>{initOverrides.n_batch}</Text>
+                              <View style={styles.initSliderLabelGroup}>
+                                <Text style={{ fontWeight: '600', color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>Batch Size</Text>
+                                <Text style={[styles.initSliderDesc, { color: currentTheme === 'dark' ? '#ccc' : themeColors.secondaryText }]}>Tokens processed per step</Text>
+                              </View>
+                              <View style={styles.initValueBadge}>
+                                <Text style={styles.initValueBadgeText}>{initOverrides.n_batch}</Text>
+                              </View>
                             </View>
                             <Slider
                               minimumValue={16}
@@ -1034,8 +1054,13 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
                           <View style={styles.initSliderItem}>
                             <View style={styles.initSliderHeader}>
-                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>Parallel Sequences</Text>
-                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>{initOverrides.n_parallel}</Text>
+                              <View style={styles.initSliderLabelGroup}>
+                                <Text style={{ fontWeight: '600', color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>Parallel Sequences</Text>
+                                <Text style={[styles.initSliderDesc, { color: currentTheme === 'dark' ? '#ccc' : themeColors.secondaryText }]}>Concurrent inference streams</Text>
+                              </View>
+                              <View style={styles.initValueBadge}>
+                                <Text style={styles.initValueBadgeText}>{initOverrides.n_parallel}</Text>
+                              </View>
                             </View>
                             <Slider
                               minimumValue={1}
@@ -1050,8 +1075,13 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
                           <View style={styles.initSliderItem}>
                             <View style={styles.initSliderHeader}>
-                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>CPU Threads</Text>
-                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>{initOverrides.n_threads}</Text>
+                              <View style={styles.initSliderLabelGroup}>
+                                <Text style={{ fontWeight: '600', color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>CPU Threads</Text>
+                                <Text style={[styles.initSliderDesc, { color: currentTheme === 'dark' ? '#ccc' : themeColors.secondaryText }]}>Thread count for computation</Text>
+                              </View>
+                              <View style={styles.initValueBadge}>
+                                <Text style={styles.initValueBadgeText}>{initOverrides.n_threads}</Text>
+                              </View>
                             </View>
                             <Slider
                               minimumValue={1}
@@ -1064,10 +1094,15 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                             />
                           </View>
 
-                          <View style={styles.initSliderItem}>
+                          <View style={[styles.initSliderItem, { marginBottom: 0 }]}>
                             <View style={styles.initSliderHeader}>
-                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>GPU Offload Layers</Text>
-                              <Text style={{ color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>{initOverrides.n_gpu_layers}</Text>
+                              <View style={styles.initSliderLabelGroup}>
+                                <Text style={{ fontWeight: '600', color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>GPU Offload Layers</Text>
+                                <Text style={[styles.initSliderDesc, { color: currentTheme === 'dark' ? '#ccc' : themeColors.secondaryText }]}>Layers offloaded to GPU</Text>
+                              </View>
+                              <View style={styles.initValueBadge}>
+                                <Text style={styles.initValueBadgeText}>{initOverrides.n_gpu_layers}</Text>
+                              </View>
                             </View>
                             <Slider
                               minimumValue={0}
@@ -1079,6 +1114,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                               thumbTintColor={getThemeAwareColor('#4a0660', currentTheme)}
                             />
                           </View>
+                        </View>
                       </View>
                     </View>
 
