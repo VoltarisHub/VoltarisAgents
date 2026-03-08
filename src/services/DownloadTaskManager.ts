@@ -330,6 +330,8 @@ export class DownloadTaskManager extends EventEmitter {
         cleanupModelIds.add(mappedPackageName);
       }
 
+      this.manualCancellationSet.add(internalName);
+
       try {
         await backgroundDownloadService.abortTransfer(internalName);
       } catch (error) {
@@ -353,7 +355,6 @@ export class DownloadTaskManager extends EventEmitter {
           this.activeDownloads.delete(internalName);
           this.tempNameMap.delete(internalName);
 
-          this.manualCancellationSet.add(internalName);
           setTimeout(() => {
             this.manualCancellationSet.delete(internalName);
           }, 30000);
