@@ -403,6 +403,16 @@ export const useModelScreenLogic = (navigation: any, routeParams?: ModelRoutePar
     };
   }, [isExporting]);
 
+  useEffect(() => {
+    const handleModelsChanged = () => {
+      rescanStoredModels();
+    };
+    modelDownloader.on('modelsChanged', handleModelsChanged);
+    return () => {
+      modelDownloader.off('modelsChanged', handleModelsChanged);
+    };
+  }, []);
+
   return {
     activeTab,
     setActiveTab,
