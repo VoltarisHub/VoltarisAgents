@@ -12,6 +12,8 @@ export function getHTTPStatusText(status: number): string {
       return 'Not Found';
     case 409:
       return 'Conflict';
+    case 422:
+      return 'Unprocessable Entity';
     case 500:
       return 'Internal Server Error';
     case 503:

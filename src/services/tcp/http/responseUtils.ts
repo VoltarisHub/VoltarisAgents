@@ -29,3 +29,30 @@ export function endChunkedResponse(socket: any): void {
   socket.write('0\r\n\r\n');
   socket.end();
 }
+
+export function sendSSEStart(socket: any, status: number): void {
+  const statusText = getHTTPStatusText(status);
+  const headers: Record<string, string> = {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+  };
+
+  const headerLines = Object.entries(headers)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join('\r\n');
+
+  const response = `HTTP/1.1 ${status} ${statusText}\r\n${headerLines}\r\n\r\n`;
+  socket.write(response);
+}
+
+export function writeSSEEvent(socket: any, data: any): void {
+  const json = JSON.stringify(data);
+  socket.write(`data: ${json}\n\n`);
+}
+
+export function endSSEStream(socket: any): void {
+  socket.write('data: [DONE]\n\n');
+  socket.end();
+}
