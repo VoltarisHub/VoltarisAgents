@@ -34,7 +34,7 @@ export default function UpdateScreen() {
       </Animated.View>
       <Text style={[styles.title, { color: textColor }]}>Updating</Text>
       <Text style={[styles.subtitle, { color: 'rgba(255,255,255,0.7)' }]}>
-        Installing the latest version...
+        Installing the latest updates...
       </Text>
     </View>
   );

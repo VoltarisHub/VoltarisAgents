@@ -3,7 +3,7 @@ export default {
     name: "InferrLM",
     slug: "inferrlm",
     owner: "subhajitgorai",
-    version: "0.8.1",
+    version: "0.8.3",
     orientation: "default",
     icon: "./assets/icon.png",
     userInterfaceStyle: "automatic",
@@ -23,8 +23,8 @@ export default {
       supportsTablet: true,
       requireFullScreen: false,
       bundleIdentifier: "com.gorai.inferra",
-      buildNumber: "283",
-      runtimeVersion: "0.8.1",
+      buildNumber: "285",
+      runtimeVersion: "0.8.3",
       infoPlist: {
         UIBackgroundModes: [
           "fetch",
@@ -53,14 +53,14 @@ export default {
       scheme: "com.gorai.inferra"
     },
     android: {
-      versionCode: 283,
+      versionCode: 285,
       predictiveBackGestureEnabled: false,
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#660880"
       },
       package: "com.gorai.ragionare",
-      runtimeVersion: "0.8.1",
+      runtimeVersion: "0.8.3",
       googleServicesFile: "./google-services.json",
       edgeToEdgeEnabled: true,
       resizeableActivity: true,
@@ -97,7 +97,7 @@ export default {
       ]
     },
     extra: {
-      autoUpdate: false,
+      autoUpdate: true,
       changelog: [
         "OpenAI-compatible API endpoints (/v1/chat/completions, /v1/models)",
         "Fixed connection issues with PC clients",

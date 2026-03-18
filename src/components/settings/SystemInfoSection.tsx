@@ -129,7 +129,7 @@ const SystemInfoSection = ({ systemInfo }: SystemInfoSectionProps) => {
                   App Version
                 </Text>
                 <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                  {systemInfo.appVersion}
+                  {systemInfo.appVersion} (5)
                 </Text>
               </View>
             </View>
