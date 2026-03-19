@@ -2,7 +2,6 @@ import EventEmitter from 'eventemitter3';
 import { GeminiService } from './GeminiService';
 import { OpenAIService } from './OpenAIService';
 import { ClaudeService } from './ClaudeService';
-import Constants from 'expo-constants';
 import providerKeyStorage from '../utils/ProviderKeyStorage';
 
 export interface ChatMessage {
@@ -37,9 +36,9 @@ export class OnlineModelService {
   private _openAIServiceGetter: () => OpenAIService | null = () => null;
   private _claudeServiceGetter: () => ClaudeService | null = () => null;
   private defaultKeys = {
-    gemini: Constants.expoConfig?.extra?.GEMINI_API_KEY || '',
-    chatgpt: Constants.expoConfig?.extra?.OPENAI_API_KEY || '',
-    claude: Constants.expoConfig?.extra?.ANTHROPIC_API_KEY || '',
+    gemini: process.env.EXPO_PUBLIC_GEMINI_API_KEY || '',
+    chatgpt: process.env.EXPO_PUBLIC_OPENAI_API_KEY || '',
+    claude: process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY || '',
   };
   private defaultUrls: Record<string, string> = {
     gemini: 'https://generativelanguage.googleapis.com/v1beta',

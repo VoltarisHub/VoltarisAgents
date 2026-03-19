@@ -1,4 +1,3 @@
-import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { isVisionRepo, detectVisionCapabilities } from '../utils/multimodalHelpers';
 import { ModelFile, ModelFormat, MLXFileGroup } from '../types/models';
@@ -49,7 +48,7 @@ interface SearchParams {
 class HuggingFaceService {
   private baseUrl = 'https://huggingface.co';
   private apiUrl = `${this.baseUrl}/api`;
-  private token = Constants.expoConfig?.extra?.HUGGINGFACE_TOKEN;
+  private token = process.env.EXPO_PUBLIC_HUGGINGFACE_TOKEN;
 
   constructor() {
     if (!this.token) {
