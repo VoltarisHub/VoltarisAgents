@@ -55,7 +55,7 @@ export const useModelDownloadHandlers = (
       await startDownloadWithVisionSupport(mainFile.filename, mainFile.downloadUrl, details.id, includeVision, details);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      showDialog('Error', `Failed to load model details: ${errorMessage}`);
+      showDialog('Error', 'Failed to load model details. Please try again.');
     }
   };
 
@@ -122,7 +122,7 @@ export const useModelDownloadHandlers = (
             return newProgress;
           });
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          showDialog('Download Error', `Failed to start download for ${file.filename}: ${errorMessage}`);
+          showDialog('Download Error', `Failed to start download for ${file.filename}. Please try again.`);
         }
       });
 
@@ -314,7 +314,7 @@ export const useModelDownloadHandlers = (
             return newProgress;
           });
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          showDialog('Download Error', `Failed to start download for ${file.filename}: ${errorMessage}`);
+          showDialog('Download Error', `Failed to start download for ${file.filename}. Please try again.`);
         }
       });
 
