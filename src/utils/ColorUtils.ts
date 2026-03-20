@@ -5,8 +5,8 @@ import { ThemeColors } from '../types/theme';
 
 const darkModeColorMap: Record<string, string> = {
   
-  '#4a0660': '#9C38C0',
-  '#660880': '#8E25B0',
+  '#4a0660': '#C060E0',
+  '#660880': '#B050D0',
   
   
   '#ff4444': '#FF6B6B',
@@ -44,7 +44,7 @@ export const getIconColor = (currentTheme: ThemeColors): string => {
 
 
 export const getDocumentIconColor = (currentTheme: ThemeColors): string => {
-  return currentTheme === 'dark' ? '#9C38C0' : '#4a0660';
+  return currentTheme === 'dark' ? '#C060E0' : '#4a0660';
 };
 
 
