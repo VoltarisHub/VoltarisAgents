@@ -166,16 +166,13 @@ export const useModelScreenLogic = (navigation: any, routeParams?: ModelRoutePar
       } catch (error) {
         setIsLoading(false);
         setImportingModelName(null);
-        showDialog('Error', `Failed to import the model: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        showDialog('Error', 'Failed to import the model. Please try again.');
       }
     } catch (error) {
       setIsLoading(false);
-      const fallbackMessage = Platform.OS === 'ios'
+      const errorMessage = Platform.OS === 'ios'
         ? 'Could not open the file picker. Please try again.'
         : 'Could not open the file picker. Please ensure the app has storage permissions.';
-      const errorMessage = error instanceof Error && error.message
-        ? `${fallbackMessage}\n\nDetails: ${error.message}`
-        : fallbackMessage;
       showDialog('Error', errorMessage);
     }
   };
@@ -253,7 +250,7 @@ export const useModelScreenLogic = (navigation: any, routeParams?: ModelRoutePar
     } catch (error) {
       setIsLoading(false);
       setIsExporting(false);
-      showDialog('Share Failed', `Failed to share ${modelName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      showDialog('Share Failed', `Failed to share ${modelName}. Please try again.`);
     }
   };
 
