@@ -163,3 +163,5 @@ eas.json
 # Misc
 package-lock.json
 yarn.lock
+# EAS code signing private key
+keys/

@@ -14,7 +14,12 @@ export default {
     updates: {
       enabled: true,
       checkAutomatically: 'NEVER',
-      url: "https://u.expo.dev/a539a082-58a3-4f29-9bb7-107913124e7d"
+      url: "https://u.expo.dev/a539a082-58a3-4f29-9bb7-107913124e7d",
+      codeSigningCertificate: "./keys/certificate.pem",
+      codeSigningMetadata: {
+        keyid: "main",
+        alg: "rsa-v1_5-sha256",
+      },
     },
     assetBundlePatterns: [
       "**/*"
@@ -99,9 +104,7 @@ export default {
     extra: {
       autoUpdate: false,
       changelog: [
-        "OpenAI-compatible API endpoints (/v1/chat/completions, /v1/models)",
-        "Fixed connection issues with PC clients",
-        "Improved server stability and error handling",
+        "Updated server homepage documentation",
       ],
       GEMINI_API_KEY: process.env.GEMINI_API_KEY,
       OPENAI_API_KEY: process.env.OPENAI_API_KEY,
