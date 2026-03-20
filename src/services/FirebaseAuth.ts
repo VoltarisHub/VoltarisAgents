@@ -205,7 +205,7 @@ export const signInWithGoogle = async (): Promise<{ success: boolean; error?: st
     if (!idToken) {
       return {
         success: false,
-        error: 'No ID token received from Google'
+        error: 'Google sign-in failed. Please try again.'
       };
     }
 
@@ -302,7 +302,7 @@ export const signInWithApple = async (): Promise<{ success: boolean; error?: str
     if (!appleCredential.identityToken) {
       return {
         success: false,
-        error: 'Apple did not return an identity token'
+        error: 'Apple sign-in failed. Please try again.'
       };
     }
 
@@ -350,7 +350,7 @@ export const signInWithApple = async (): Promise<{ success: boolean; error?: str
     if (error?.code === 'ERR_REQUEST_CANCELED' || error?.code === 'ERR_CANCELED') {
       errorMessage = 'Sign-in was cancelled';
     } else if (error?.message?.includes('authorization attempt failed')) {
-      errorMessage = 'Apple Sign-In is not properly configured. Please ensure Apple Sign-In capability is enabled in your Apple Developer account.';
+      errorMessage = 'Apple sign-in is unavailable. Please try again later.';
     } else if (typeof error?.code === 'string' && AUTH_ERROR_MESSAGES[error.code]) {
       errorMessage = AUTH_ERROR_MESSAGES[error.code];
     }
