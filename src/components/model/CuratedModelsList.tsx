@@ -65,7 +65,7 @@ export const CuratedModelsList: React.FC<CuratedModelsListProps> = ({
       <View style={styles.curatedSection}>
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionHeaderTitle, { color: themeColors.text }]}>
-            Curated Models ({models.length})
+            Curated GGUF Models ({models.length})
           </Text>
         </View>
         
