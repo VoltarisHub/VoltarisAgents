@@ -12,7 +12,7 @@ export const formatBytes = (bytes: number) => {
 };
 
 export const getDisplayName = (filename: string) => {
-  return filename.split('.')[0];
+  return filename.replace(/\.(gguf|bin)$/i, '');
 };
 
 export const getModelNameFromPath = (path: string | null, models: StoredModel[], cloneModels: OnlineModel[] = []): string => {

@@ -229,7 +229,7 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
           {model.additionalFiles && model.additionalFiles.length > 0 && (
             <Text style={[styles.additionalFilesNote, { color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)' }]}>
               <MaterialCommunityIcons name="information-outline" size={14} color={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)'} />
-              {' '}This download includes {model.additionalFiles.length} additional file{model.additionalFiles.length > 1 ? 's' : ''}: {model.additionalFiles.map(file => file.name.split('.')[0]).join(', ')}
+              {' '}This download includes {model.additionalFiles.length} additional file{model.additionalFiles.length > 1 ? 's' : ''}: {model.additionalFiles.map(file => file.name.replace(/\.(gguf|bin)$/i, '')).join(', ')}
             </Text>
           )}
           

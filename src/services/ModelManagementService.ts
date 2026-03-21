@@ -119,7 +119,7 @@ export class ModelManagementService {
       const modelPath = engineService.getActiveModelPath();
       if (modelPath) {
         const modelFileName = modelPath.split('/').pop() || '';
-        modelName = modelFileName.split('.')[0];
+        modelName = modelFileName.replace(/\.(gguf|bin)$/i, '');
         iconName = "cube";
       }
     } else if (activeProvider === 'gemini') {

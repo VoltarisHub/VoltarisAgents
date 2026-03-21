@@ -25,7 +25,7 @@ export const getProgressText = (data: any) => {
 };
 
 export const getDisplayName = (filename: string) => {
-  return filename.split('.')[0];
+  return filename.replace(/\.(gguf|bin)$/i, '');
 };
 
 export const getActiveDownloadsCount = (downloads: any): number => {

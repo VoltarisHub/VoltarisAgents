@@ -38,8 +38,8 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
 
   const isModelDownloaded = (modelName: string) => {
     return storedModels.some(storedModel => {
-      const storedModelName = storedModel.name.split('.')[0];
-      const downloadableModelName = modelName.split('.')[0];
+      const storedModelName = storedModel.name.replace(/\.(gguf|bin)$/i, '');
+      const downloadableModelName = modelName.replace(/\.(gguf|bin)$/i, '');
       return storedModelName.toLowerCase() === downloadableModelName.toLowerCase();
     });
   };
