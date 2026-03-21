@@ -599,19 +599,21 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       );
     } catch (error) {
       console.log('local_process_message_error', error instanceof Error ? error.message : 'unknown');
-      const msg = error instanceof Error ? error.message : '';
-      if (msg === 'CONTEXT_LENGTH_EXCEEDED') {
-        showDialog(
-          'Message Too Long',
-          'Your message is too long for the model\'s context window. Please increase the context window limit.',
-        );
-      } else {
-        showDialog(
-          'Error',
-          'Failed to generate response. Model might not be supported.',
-        );
-      }
       resetStreamingState();
+      const msg = error instanceof Error ? error.message : '';
+      setTimeout(() => {
+        if (msg === 'CONTEXT_LENGTH_EXCEEDED') {
+          showDialog(
+            'Message Too Long',
+            'Your message is too long for the model\'s context window. Please increase the context window limit.',
+          );
+        } else {
+          showDialog(
+            'Error',
+            'Failed to generate response. Model might not be supported.',
+          );
+        }
+      }, 100);
     }
   };
 
