@@ -1,8 +1,20 @@
-interface LogEntry {
+export interface LogMetadata {
+  model?: string;
+  messages?: Array<{ role: string; content: string }>;
+  response?: string;
+  params?: Record<string, any>;
+  duration?: number;
+  stream?: boolean;
+  endpoint?: string;
+  status?: number;
+}
+
+export interface LogEntry {
   timestamp: number;
   level: string;
   msg: string;
   category?: string;
+  metadata?: LogMetadata;
 }
 
 class ServerLogger {
@@ -12,12 +24,13 @@ class ServerLogger {
   constructor() {
   }
 
-  private addLogEntry(level: string, message: string, category: string = 'server') {
+  private addLogEntry(level: string, message: string, category: string = 'server', metadata?: LogMetadata) {
     const entry: LogEntry = {
       timestamp: Date.now(),
       level,
       msg: message,
       category,
+      ...(metadata ? { metadata } : {}),
     };
 
     this.logEntries.unshift(entry);
@@ -56,6 +69,30 @@ class ServerLogger {
   async clearLogs(): Promise<void> {
     this.logEntries = [];
     this.info('logs_cleared', 'system');
+  }
+
+  logInference(data: {
+    model: string;
+    endpoint: string;
+    messages: Array<{ role: string; content: string }>;
+    params?: Record<string, any>;
+    stream?: boolean;
+    response?: string;
+    duration?: number;
+    status?: number;
+  }) {
+    const label = data.response ? 'inference_complete' : 'inference_request';
+    const meta: LogMetadata = {
+      model: data.model,
+      endpoint: data.endpoint,
+      messages: data.messages,
+      params: data.params,
+      stream: data.stream,
+      response: data.response,
+      duration: data.duration,
+      status: data.status,
+    };
+    this.addLogEntry('info', `${label} model:${data.model} endpoint:${data.endpoint}`, 'inference', meta);
   }
 
   logServerStart(port: number, url: string) {
