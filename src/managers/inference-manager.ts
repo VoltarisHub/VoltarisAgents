@@ -54,6 +54,7 @@ export interface InferenceManager {
   init(modelPath: string, projectorPath?: string): Promise<void>;
   gen(messages: Msg[], opts?: GenOpts): Promise<string>;
   embed?(text: string): Promise<number[]>;
+  stop?(): void;
   release(): Promise<void>;
   caps(): EngineCaps;
   ready(): boolean;

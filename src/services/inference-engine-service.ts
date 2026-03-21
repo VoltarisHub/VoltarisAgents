@@ -116,6 +116,10 @@ class EngineService {
     return this.map[this.engine];
   }
 
+  stop() {
+    this.map[this.engine].stop?.();
+  }
+
   ready() {
     return this.map[this.engine].ready();
   }
