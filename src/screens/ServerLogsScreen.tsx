@@ -9,6 +9,7 @@ import { theme } from '../constants/theme';
 import { RootStackParamList } from '../types/navigation';
 import AppHeader from '../components/AppHeader';
 import { logger } from '../utils/logger';
+import type { LogMetadata } from '../utils/logger';
 
 interface LogEntry {
   id: string;
@@ -16,6 +17,7 @@ interface LogEntry {
   level: string;
   message: string;
   category?: string;
+  metadata?: LogMetadata;
 }
 
 export default function ServerLogsScreen() {
@@ -28,6 +30,22 @@ export default function ServerLogsScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const [clearDialogVisible, setClearDialogVisible] = useState(false);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [filter, setFilter] = useState<string>('all');
+
+  const FILTERS = ['all', 'inference', 'http', 'server', 'model', 'error'] as const;
+
+  const toggleExpand = useCallback((id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
 
   const maskSensitiveData = useCallback((value: string) => {
     if (!value) {
@@ -70,6 +88,7 @@ export default function ServerLogsScreen() {
             level: (log.level || 'INFO').toUpperCase(),
             message: maskSensitiveData(String(messageSource)),
             category: log.category || 'server',
+            metadata: log.metadata || undefined,
           };
         });
       setLogs(formatted);
@@ -144,6 +163,119 @@ export default function ServerLogsScreen() {
     }
   };
 
+  const truncate = (text: string, max: number) => {
+    if (text.length <= max) return text;
+    return text.slice(0, max) + '...';
+  };
+
+  const filteredLogs = logs.filter(log => {
+    if (filter === 'all') return true;
+    if (filter === 'error') return log.level === 'ERROR';
+    return log.category === filter;
+  });
+
+  const renderParams = (params: Record<string, any>) => {
+    return Object.entries(params).map(([key, val]) => (
+      <View key={key} style={styles.paramRow}>
+        <Text style={styles.paramKey}>{key}</Text>
+        <Text style={styles.paramVal}>{Array.isArray(val) ? val.join(', ') : String(val)}</Text>
+      </View>
+    ));
+  };
+
+  const renderMessages = (messages: Array<{ role: string; content: string }>) => {
+    return messages.map((msg, i) => {
+      const roleColor = msg.role === 'system' ? '#FF9F43' : msg.role === 'assistant' ? '#52D274' : '#4D7BFF';
+      return (
+        <View key={`${msg.role}-${i}`} style={styles.msgEntry}>
+          <Text style={[styles.msgRole, { color: roleColor }]}>{msg.role}</Text>
+          <Text style={styles.msgContent}>{truncate(maskSensitiveData(msg.content), 500)}</Text>
+        </View>
+      );
+    });
+  };
+
+  const renderInference = (log: LogEntry) => {
+    const meta = log.metadata;
+    if (!meta) return null;
+    const expanded = expandedIds.has(log.id);
+
+    return (
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() => toggleExpand(log.id)}
+        style={[styles.inferenceEntry, { borderLeftColor: meta.response ? '#52D274' : '#4D7BFF' }]}
+      >
+        <View style={styles.inferenceHeader}>
+          <View style={styles.inferenceHeaderLeft}>
+            <MaterialCommunityIcons
+              name={meta.response ? 'check-circle' : 'arrow-right-circle'}
+              size={14}
+              color={meta.response ? '#52D274' : '#4D7BFF'}
+            />
+            <Text style={styles.inferenceTitle}>
+              {meta.response ? 'Completion' : 'Request'}
+            </Text>
+            <Text style={styles.inferenceModel}>{meta.model}</Text>
+            {meta.stream && <Text style={styles.streamBadge}>STREAM</Text>}
+          </View>
+          <View style={styles.inferenceHeaderRight}>
+            {meta.duration != null && (
+              <Text style={styles.durationText}>{meta.duration}ms</Text>
+            )}
+            <Text style={styles.logTimestamp}>{log.timestamp}</Text>
+            <MaterialCommunityIcons
+              name={expanded ? 'chevron-up' : 'chevron-down'}
+              size={16}
+              color="#666"
+            />
+          </View>
+        </View>
+
+        {expanded && (
+          <View style={styles.inferenceBody}>
+            {meta.endpoint && (
+              <View style={styles.detailSection}>
+                <Text style={styles.detailLabel}>Endpoint</Text>
+                <Text style={styles.detailValue}>{meta.endpoint}</Text>
+              </View>
+            )}
+
+            {meta.params && Object.keys(meta.params).length > 0 && (
+              <View style={styles.detailSection}>
+                <Text style={styles.detailLabel}>Parameters</Text>
+                <View style={styles.paramsGrid}>{renderParams(meta.params)}</View>
+              </View>
+            )}
+
+            {meta.messages && meta.messages.length > 0 && (
+              <View style={styles.detailSection}>
+                <Text style={styles.detailLabel}>Messages ({meta.messages.length})</Text>
+                {renderMessages(meta.messages)}
+              </View>
+            )}
+
+            {meta.response && (
+              <View style={styles.detailSection}>
+                <Text style={styles.detailLabel}>Response</Text>
+                <Text style={styles.responseText}>{truncate(maskSensitiveData(meta.response), 1000)}</Text>
+              </View>
+            )}
+
+            {meta.status != null && (
+              <View style={styles.detailSection}>
+                <Text style={styles.detailLabel}>Status</Text>
+                <Text style={[styles.detailValue, { color: meta.status < 400 ? '#52D274' : '#FF5C5C' }]}>
+                  {meta.status}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <AppHeader
@@ -175,7 +307,22 @@ export default function ServerLogsScreen() {
       />
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{`SERVER LOGS (${logs.length})`}</Text>
+        <View style={styles.filterRow}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContent}>
+            {FILTERS.map(f => (
+              <TouchableOpacity
+                key={f}
+                style={[styles.filterChip, filter === f && styles.filterChipActive]}
+                onPress={() => setFilter(f)}
+              >
+                <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
+                  {f.toUpperCase()}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          <Text style={styles.countText}>{filteredLogs.length}</Text>
+        </View>
         <ScrollView
           ref={scrollViewRef}
           style={styles.logsContainer}
@@ -196,7 +343,7 @@ export default function ServerLogsScreen() {
             }
           }}
         >
-          {logs.length === 0 ? (
+          {filteredLogs.length === 0 ? (
             <View style={styles.emptyContainer}>
               <MaterialCommunityIcons name="text-box-outline" size={48} color="#FFFFFF" />
               <Text style={styles.emptyText}>No logs available</Text>
@@ -205,18 +352,24 @@ export default function ServerLogsScreen() {
               </Text>
             </View>
           ) : (
-            logs.map((log) => (
-              <View key={log.id} style={[styles.logEntry, { borderLeftColor: getLevelColor(log.level) }]}> 
-                <Text style={styles.logLine}>
-                  <Text style={styles.logTimestamp}>[{log.timestamp}]</Text>
-                  <Text style={[styles.logLevelTag, { color: getLevelColor(log.level) }]}>{` [${log.level}]`}</Text>
-                  {log.category && (
-                    <Text style={styles.logCategoryTag}>{` [${log.category}]`}</Text>
-                  )}
-                  <Text style={styles.logMessage}>{` ${log.message}`}</Text>
-                </Text>
-              </View>
-            ))
+            filteredLogs.map((log) => {
+              if (log.metadata) {
+                return <React.Fragment key={log.id}>{renderInference(log)}</React.Fragment>;
+              }
+
+              return (
+                <View key={log.id} style={[styles.logEntry, { borderLeftColor: getLevelColor(log.level) }]}>
+                  <Text style={styles.logLine}>
+                    <Text style={styles.logTimestamp}>[{log.timestamp}]</Text>
+                    <Text style={[styles.logLevelTag, { color: getLevelColor(log.level) }]}>{` [${log.level}]`}</Text>
+                    {log.category && (
+                      <Text style={styles.logCategoryTag}>{` [${log.category}]`}</Text>
+                    )}
+                    <Text style={styles.logMessage}>{` ${log.message}`}</Text>
+                  </Text>
+                </View>
+              );
+            })
           )}
         </ScrollView>
       </View>
@@ -263,14 +416,43 @@ const styles = StyleSheet.create({
   section: {
     flex: 1,
     marginHorizontal: 16,
-    marginTop: 12,
+    marginTop: 8,
   },
-  sectionTitle: {
-    fontSize: 12,
+  filterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  filterContent: {
+    gap: 6,
+    paddingRight: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: '#1A1A1A',
+    borderWidth: 1,
+    borderColor: '#222',
+  },
+  filterChipActive: {
+    backgroundColor: '#1A2940',
+    borderColor: '#4D7BFF',
+  },
+  filterText: {
+    fontSize: 11,
     fontWeight: '600',
-    letterSpacing: 1,
-    color: '#5C8DFF',
-    marginBottom: 12,
+    color: '#888',
+    letterSpacing: 0.5,
+  },
+  filterTextActive: {
+    color: '#4D7BFF',
+  },
+  countText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#555',
+    marginLeft: 6,
   },
   logsContainer: {
     flex: 1,
@@ -317,6 +499,7 @@ const styles = StyleSheet.create({
   },
   logTimestamp: {
     color: '#4D7BFF',
+    fontSize: 11,
   },
   logLevelTag: {
     fontWeight: '700',
@@ -326,6 +509,132 @@ const styles = StyleSheet.create({
   },
   logMessage: {
     color: '#E4E4E4',
+  },
+  inferenceEntry: {
+    borderLeftWidth: 3,
+    borderRadius: 8,
+    backgroundColor: '#0A0A0A',
+    marginBottom: 6,
+    overflow: 'hidden',
+  },
+  inferenceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  inferenceHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  inferenceHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  inferenceTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#E4E4E4',
+  },
+  inferenceModel: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#888',
+    backgroundColor: '#1A1A1A',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  streamBadge: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#FF9F43',
+    backgroundColor: '#2A1A00',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 3,
+    overflow: 'hidden',
+    letterSpacing: 0.5,
+  },
+  durationText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#52D274',
+  },
+  inferenceBody: {
+    paddingHorizontal: 10,
+    paddingBottom: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#151515',
+  },
+  detailSection: {
+    marginTop: 10,
+  },
+  detailLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    color: '#666',
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  detailValue: {
+    fontSize: 12,
+    fontFamily: 'monospace',
+    color: '#CCC',
+  },
+  paramsGrid: {
+    backgroundColor: '#0F0F0F',
+    borderRadius: 6,
+    padding: 8,
+  },
+  paramRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 3,
+  },
+  paramKey: {
+    fontSize: 11,
+    fontFamily: 'monospace',
+    color: '#4D7BFF',
+  },
+  paramVal: {
+    fontSize: 11,
+    fontFamily: 'monospace',
+    color: '#CCC',
+  },
+  msgEntry: {
+    backgroundColor: '#0F0F0F',
+    borderRadius: 6,
+    padding: 8,
+    marginBottom: 4,
+  },
+  msgRole: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 3,
+  },
+  msgContent: {
+    fontSize: 12,
+    fontFamily: 'monospace',
+    lineHeight: 17,
+    color: '#D0D0D0',
+  },
+  responseText: {
+    fontSize: 12,
+    fontFamily: 'monospace',
+    lineHeight: 17,
+    color: '#52D274',
+    backgroundColor: '#0A1A0A',
+    borderRadius: 6,
+    padding: 8,
   },
   footer: {
     flexDirection: 'row',
