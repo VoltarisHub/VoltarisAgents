@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Text, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, StyleSheet, ScrollView, Text, TouchableOpacity, RefreshControl, Switch } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -32,6 +32,7 @@ export default function ServerLogsScreen() {
   const [clearDialogVisible, setClearDialogVisible] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<string>('all');
+  const prevLogCountRef = useRef(0);
 
   const FILTERS = ['all', 'inference', 'http', 'server', 'model', 'error'] as const;
 
@@ -93,11 +94,14 @@ export default function ServerLogsScreen() {
         });
       setLogs(formatted);
 
-      if (autoScroll && scrollViewRef.current) {
+      const hasActiveStream = formatted.some(l => l.metadata?.streaming);
+      const hasNewLogs = formatted.length > prevLogCountRef.current;
+      if (autoScroll && (hasNewLogs || hasActiveStream) && scrollViewRef.current) {
         requestAnimationFrame(() => {
           scrollViewRef.current?.scrollToEnd({ animated: true });
         });
       }
+      prevLogCountRef.current = formatted.length;
     } catch (error) {
       console.error('Failed to load logs:', error);
     }
@@ -204,20 +208,21 @@ export default function ServerLogsScreen() {
       <TouchableOpacity
         activeOpacity={0.7}
         onPress={() => toggleExpand(log.id)}
-        style={[styles.inferenceEntry, { borderLeftColor: meta.response ? '#52D274' : '#4D7BFF' }]}
+        style={[styles.inferenceEntry, { borderLeftColor: meta.streaming ? '#FF9F43' : meta.response ? '#52D274' : '#4D7BFF' }]}
       >
         <View style={styles.inferenceHeader}>
           <View style={styles.inferenceHeaderLeft}>
             <MaterialCommunityIcons
-              name={meta.response ? 'check-circle' : 'arrow-right-circle'}
+              name={meta.streaming ? 'lightning-bolt' : meta.response ? 'check-circle' : 'arrow-right-circle'}
               size={14}
-              color={meta.response ? '#52D274' : '#4D7BFF'}
+              color={meta.streaming ? '#FF9F43' : meta.response ? '#52D274' : '#4D7BFF'}
             />
             <Text style={styles.inferenceTitle}>
-              {meta.response ? 'Completion' : 'Request'}
+              {meta.streaming ? 'Streaming' : meta.response ? 'Completion' : 'Request'}
             </Text>
             <Text style={styles.inferenceModel}>{meta.model}</Text>
             {meta.stream && <Text style={styles.streamBadge}>STREAM</Text>}
+            {meta.streaming && <Text style={styles.liveBadge}>LIVE</Text>}
           </View>
           <View style={styles.inferenceHeaderRight}>
             {meta.duration != null && (
@@ -283,26 +288,13 @@ export default function ServerLogsScreen() {
         showBackButton
         onBackPress={() => navigation.goBack()}
         rightButtons={
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              style={styles.headerButton}
-              onPress={() => setAutoScroll((prev) => !prev)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <MaterialCommunityIcons
-                name={autoScroll ? 'arrow-down-bold' : 'arrow-down-bold-outline'}
-                size={20}
-                color={autoScroll ? themeColors.primary : '#FFFFFF'}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.headerButton}
-              onPress={() => setClearDialogVisible(true)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <MaterialCommunityIcons name="delete-outline" size={20} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => setClearDialogVisible(true)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <MaterialCommunityIcons name="delete-outline" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
         }
       />
 
@@ -337,11 +329,6 @@ export default function ServerLogsScreen() {
             />
           }
           showsVerticalScrollIndicator
-          onContentSizeChange={() => {
-            if (autoScroll && scrollViewRef.current) {
-              scrollViewRef.current.scrollToEnd({ animated: true });
-            }
-          }}
         >
           {filteredLogs.length === 0 ? (
             <View style={styles.emptyContainer}>
@@ -379,7 +366,15 @@ export default function ServerLogsScreen() {
           <MaterialCommunityIcons name="refresh" size={20} color="#FFFFFF" />
           <Text style={styles.footerButtonText}>Refresh</Text>
         </TouchableOpacity>
-        <Text style={styles.autoScrollText}>Auto-scroll: {autoScroll ? 'ON' : 'OFF'}</Text>
+        <View style={styles.autoScrollRow}>
+          <Text style={styles.autoScrollText}>Auto-scroll</Text>
+          <Switch
+            value={autoScroll}
+            onValueChange={setAutoScroll}
+            trackColor={{ false: '#333', true: themeColors.primary }}
+            thumbColor="#FFF"
+          />
+        </View>
       </View>
 
       <Dialog
@@ -400,10 +395,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    gap: 8,
   },
   headerButton: {
     width: 36,
@@ -561,6 +552,17 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     letterSpacing: 0.5,
   },
+  liveBadge: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#52D274',
+    backgroundColor: '#0A2A0A',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 3,
+    overflow: 'hidden',
+    letterSpacing: 0.5,
+  },
   durationText: {
     fontSize: 11,
     fontWeight: '600',
@@ -659,6 +661,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 8,
+  },
+  autoScrollRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   autoScrollText: {
     color: '#A0A0A0',
