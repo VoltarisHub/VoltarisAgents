@@ -189,6 +189,7 @@ class MlxManager implements InferenceManager {
       }
 
       this.state = { loaded: true, modelId: loadedId };
+      LLM.debug = true;
       console.log('mlx_init_complete', loadedId);
     } catch (error) {
       console.log('mlx_init_error', error);
@@ -198,17 +199,31 @@ class MlxManager implements InferenceManager {
 
   async gen(messages: Msg[], opts?: GenOpts) {
     console.log('mlx_gen_start', { loaded: this.state.loaded, modelId: this.state.modelId, messageCount: messages.length });
-    
+
     if (!this.state.loaded) {
       console.log('mlx_gen_error_not_ready');
       throw new Error('engine_not_ready');
     }
-    
+
+    console.log('mlx_gen_messages_dump:');
+    messages.forEach((msg, i) => {
+      const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+      console.log(`  [${i}:${msg.role}] ${content.substring(0, 200)}`);
+    });
+
+    const historyBefore = LLM.getHistory();
+    console.log('mlx_history_before_clear', { count: historyBefore.length });
+    historyBefore.forEach((msg, i) => {
+      console.log(`  hist[${i}:${msg.role}] ${msg.content.substring(0, 120)}`);
+    });
+
     LLM.clearHistory();
+    console.log('mlx_history_after_clear', { count: LLM.getHistory().length });
 
     const lastMessage = messages[messages.length - 1];
     const prompt = typeof lastMessage.content === 'string' ? lastMessage.content : '';
-    console.log('mlx_gen_prompt', { promptLength: prompt.length, role: lastMessage.role });
+    console.log('mlx_gen_prompt', { promptLength: prompt.length, role: lastMessage.role, systemPrompt: LLM.systemPrompt.substring(0, 100) });
+    console.log('mlx_gen_prompt_full:', prompt.substring(0, 500));
 
     if (opts?.settings?.systemPrompt !== undefined) {
       LLM.systemPrompt = opts.settings.systemPrompt;
@@ -219,17 +234,23 @@ class MlxManager implements InferenceManager {
     await LLM.stream(prompt, token => {
       full += token;
       tokenCount++;
-      console.log('mlx_token_received', { tokenCount, tokenLength: token.length });
+      if (tokenCount <= 10 || tokenCount % 50 === 0) {
+        console.log(`mlx_token[${tokenCount}]`, JSON.stringify(token));
+      }
       if (opts?.onToken) {
         const continueStreaming = opts.onToken(token);
-        console.log('mlx_token_callback_result', { continueStreaming });
         if (continueStreaming === false) {
-          console.log('mlx_stream_cancelled_by_callback');
+          console.log('mlx_stream_cancelled');
         }
       }
     });
-    
-    console.log('mlx_gen_complete', { responseLength: full.length, tokenCount });
+
+    const historyAfter = LLM.getHistory();
+    console.log('mlx_gen_complete', { responseLength: full.length, tokenCount, historyAfter: historyAfter.length });
+    console.log('mlx_gen_result_preview:', full.substring(0, 300));
+    historyAfter.forEach((msg, i) => {
+      console.log(`  hist_after[${i}:${msg.role}] ${msg.content.substring(0, 120)}`);
+    });
     return full.trim();
   }
 
