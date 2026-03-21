@@ -222,12 +222,20 @@ class MlxManager implements InferenceManager {
     console.log('mlx_gen_messages_dump:');
     messages.forEach((msg, i) => {
       const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-      console.log(`  [${i}:${msg.role}] ${content.substring(0, 200)}`);
+      console.log(`  [${i}:${msg.role}] ${content}`);
     });
 
     if (opts?.settings?.systemPrompt !== undefined) {
       LLM.systemPrompt = opts.settings.systemPrompt;
     }
+    if (opts?.settings?.maxTokens !== undefined) {
+      LLM.maxTokens = opts.settings.maxTokens;
+    }
+    if (opts?.settings?.temperature !== undefined) {
+      LLM.temperature = opts.settings.temperature;
+    }
+
+    console.log('mlx_gen_params', { systemPrompt: LLM.systemPrompt, maxTokens: LLM.maxTokens, temperature: LLM.temperature });
 
     const historyBefore = LLM.getHistory();
     console.log('mlx_history_before_clear', { count: historyBefore.length });
@@ -237,8 +245,8 @@ class MlxManager implements InferenceManager {
 
     const lastMessage = messages[messages.length - 1];
     const prompt = typeof lastMessage.content === 'string' ? lastMessage.content : '';
-    console.log('mlx_gen_prompt', { promptLength: prompt.length, role: lastMessage.role, systemPrompt: LLM.systemPrompt.substring(0, 100) });
-    console.log('mlx_gen_prompt_full:', prompt.substring(0, 500));
+    console.log('mlx_gen_prompt', { promptLength: prompt.length, role: lastMessage.role });
+    console.log('mlx_gen_prompt_full:', prompt);
 
     let full = '';
     let tokenCount = 0;
@@ -262,9 +270,9 @@ class MlxManager implements InferenceManager {
 
     const historyAfter = LLM.getHistory();
     console.log('mlx_gen_complete', { responseLength: full.length, tokenCount, historyAfter: historyAfter.length });
-    console.log('mlx_gen_result_preview:', full.substring(0, 300));
+    console.log('mlx_gen_result:', full);
     historyAfter.forEach((msg, i) => {
-      console.log(`  hist_after[${i}:${msg.role}] ${msg.content.substring(0, 120)}`);
+      console.log(`  hist_after[${i}:${msg.role}] ${msg.content}`);
     });
     return full.trim();
   }
