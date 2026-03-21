@@ -603,7 +603,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       if (msg === 'CONTEXT_LENGTH_EXCEEDED') {
         showDialog(
           'Message Too Long',
-          'Your message is too long for the model\'s context window. Please increase the context limit.',
+          'Your message is too long for the model\'s context window. Please increase the context window limit.',
         );
       } else {
         showDialog(

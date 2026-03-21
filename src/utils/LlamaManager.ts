@@ -153,10 +153,7 @@ class LlamaManager {
     const payload = this.serializeError(error);
     const text = JSON.stringify(payload).toLowerCase();
     return text.includes('context_length_exceeded') ||
-      text.includes('not enough context space') ||
-      (text.includes('context') && text.includes('space')) ||
-      text.includes('context window') ||
-      text.includes('prompt is too long');
+      text.includes('context is full');
   }
 
   private toTextOnlyContent(content: any): string {
