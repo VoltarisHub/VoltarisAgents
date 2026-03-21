@@ -93,6 +93,11 @@ export default function ServerLogsScreen() {
           };
         });
       setLogs(formatted);
+      setExpandedIds(prev => {
+        const next = new Set(prev);
+        formatted.forEach(l => { if (l.metadata) next.add(l.id); });
+        return next;
+      });
 
       const hasActiveStream = formatted.some(l => l.metadata?.streaming);
       const hasNewLogs = formatted.length > prevLogCountRef.current;
