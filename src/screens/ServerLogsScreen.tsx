@@ -84,7 +84,7 @@ export default function ServerLogsScreen() {
           const messageSource = log.msg || log.message || String(log);
 
           return {
-            id: `${timestampMs}-${index}`,
+            id: log.metadata?.streamId || `${timestampMs}-${index}`,
             timestamp,
             level: (log.level || 'INFO').toUpperCase(),
             message: maskSensitiveData(String(messageSource)),
