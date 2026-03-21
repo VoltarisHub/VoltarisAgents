@@ -309,7 +309,7 @@ export default function ChatView({
         cleanContent = content.replace(/<think>[\s\S]*?$/, '').trim();
       }
       
-      return { thinking, cleanContent };
+      return { thinking, cleanContent: cleanContent.trim() };
     };
 
     const rawMessageContent = isCurrentlyStreaming 
