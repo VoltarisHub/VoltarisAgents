@@ -57,6 +57,8 @@ type HomeScreenProps = {
   route: RouteProp<TabParamList, 'HomeTab'>;
 };
 
+let hasInitializedChat = false;
+
 const remoteProviders: ProviderType[] = ['gemini', 'chatgpt', 'claude'];
 
 const isRemoteProvider = (provider: string | null): boolean => {
@@ -193,8 +195,17 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       }
 
       if (isFirstLaunchRef.current) {
-        await startNewChat();
         isFirstLaunchRef.current = false;
+        if (hasInitializedChat) {
+          const existingChat = chatManager.getCurrentChat();
+          if (existingChat) {
+            setChat(existingChat);
+            setMessages(existingChat.messages || []);
+            return;
+          }
+        }
+        hasInitializedChat = true;
+        await startNewChat();
         return;
       }
 

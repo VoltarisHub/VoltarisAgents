@@ -16,7 +16,7 @@
   "dependencies": {
     "@expo/plist": "^0.3.5",
     "@expo/vector-icons": "^15.0.3",
-    "@inferrlm/react-native-mlx": "^0.4.1",
+    "@inferrlm/react-native-mlx": "0.4.2-alpha.10",
     "@op-engineering/op-sqlite": "^15.2.7",
     "@react-native-ai/apple": "0.12.0",
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -56,7 +56,7 @@
     "expo-secure-store": "~15.0.8",
     "expo-sharing": "~14.0.8",
     "expo-splash-screen": "~31.0.13",
-    "expo-sqlite": "16.0.9",
+    "expo-sqlite": "^55.0.11",
     "expo-status-bar": "~3.0.9",
     "expo-symbols": "~1.0.8",
     "expo-system-ui": "~6.0.9",
