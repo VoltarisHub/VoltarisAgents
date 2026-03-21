@@ -380,6 +380,20 @@ export const useModelScreenLogic = (navigation: any, routeParams?: ModelRoutePar
     };
   }, []);
 
+  const hasActiveDownloads = getActiveDownloadsCount(downloadProgress) > 0;
+
+  useEffect(() => {
+    modelDownloader.ensureDownloadsAreRunning().catch(() => {});
+
+    if (!hasActiveDownloads) return;
+
+    const id = setInterval(() => {
+      modelDownloader.ensureDownloadsAreRunning().catch(() => {});
+    }, 1000);
+
+    return () => clearInterval(id);
+  }, [hasActiveDownloads]);
+
   useEffect(() => {
     const activeCount = getActiveDownloadsCount(downloadProgress);
     if (activeCount !== prevActiveCount.current && activeCount > 0) {
