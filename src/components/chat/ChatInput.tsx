@@ -32,8 +32,7 @@ import type { ProviderType } from '../../services/ModelManagementService';
 import chatManager from '../../utils/ChatManager';
 import { uuidv4 } from 'react-native-rag';
 import { OnlineModelService } from '../../services/OnlineModelService';
-import { openAIFileAdapter, getMimeType } from '../../services/adapters/OpenAIFileAdapter';
-import { openAIFileStore } from '../../services/adapters/OpenAIFileStore';
+import { getMimeType } from '../../services/adapters/OpenAIFileAdapter';
 
 type ChatInputProps = {
   onSend: (text: string) => void;
@@ -558,49 +557,6 @@ export default function ChatInput({
       const userMessage = sanitizedPrompt || `File uploaded: ${displayName}`;
       console.log('file_upload_start', displayName, useRagFlag ? 'rag_on' : 'rag_off');
 
-      /*
-        OpenAI remote model: upload file via Files API instead of local RAG.
-        The file URI is available from selectedFile state set by pickDocument.
-      */
-      const baseProvider = selectedModelPath
-        ? OnlineModelService.getBaseProvider(selectedModelPath)
-        : null;
-      if (baseProvider === 'chatgpt' && selectedFile?.uri) {
-        try {
-          const chatId = chatManager.getCurrentChatId() || 'unknown';
-          const result = await openAIFileAdapter.upload(
-            selectedFile.uri,
-            displayName,
-            'assistants',
-            selectedModelPath!
-          );
-          await openAIFileStore.save({
-            fileId: result.id,
-            filename: displayName,
-            chatId,
-            provider: selectedModelPath!,
-            purpose: 'assistants',
-            bytes: result.bytes,
-            uploadedAt: Date.now(),
-          });
-          const messageObject = {
-            type: 'file_upload',
-            fileName: displayName,
-            internalInstruction: `File "${displayName}" uploaded to OpenAI (id: ${result.id})`,
-            userContent: userMessage,
-            metadata: { openaiFileId: result.id },
-          };
-          console.log('file_upload_openai', displayName, result.id);
-          onSend(JSON.stringify(messageObject));
-          setShowAttachmentMenu(false);
-          setRagProgress(null);
-          return;
-        } catch (error) {
-          console.log('file_upload_openai_error', error instanceof Error ? error.message : 'unknown');
-          showDialog('Upload Error', 'Failed to upload file to OpenAI. Falling back to inline text.');
-        }
-      }
-
       const buildInternalInstruction = (fileBody?: string) => {
         const sections: string[] = [`You're reading a file named: ${displayName}`];
         if (sanitizedPrompt) {
@@ -674,39 +630,6 @@ export default function ChatInput({
     const displayName = fileName || 'document';
     const promptText = userPrompt?.trim() || '';
     const userContent = promptText || `File uploaded: ${displayName}`;
-    const baseProvider = selectedModelPath
-      ? OnlineModelService.getBaseProvider(selectedModelPath)
-      : null;
-
-    if (baseProvider === 'chatgpt') {
-      try {
-        const curChatId = chatManager.getCurrentChatId() || 'unknown';
-        const result = await openAIFileAdapter.upload(
-          fileUri, displayName, 'assistants', selectedModelPath!
-        );
-        await openAIFileStore.save({
-          fileId: result.id,
-          filename: displayName,
-          chatId: curChatId,
-          provider: selectedModelPath!,
-          purpose: 'assistants',
-          bytes: result.bytes,
-          uploadedAt: Date.now(),
-        });
-        onSend(JSON.stringify({
-          type: 'file_upload',
-          fileName: displayName,
-          internalInstruction: `File "${displayName}" uploaded to OpenAI (id: ${result.id})`,
-          userContent,
-          metadata: { openaiFileId: result.id },
-        }));
-        console.log('remote_upload_openai', displayName, result.id);
-      } catch (error) {
-        console.log('remote_upload_error', error instanceof Error ? error.message : 'unknown');
-        showDialog('Upload Error', 'Failed to upload file to OpenAI.');
-      }
-      return;
-    }
 
     try {
       const uploadsDir = `${FileSystem.documentDirectory}uploads`;
@@ -721,7 +644,7 @@ export default function ChatInput({
         userContent,
         metadata: { remoteFileUri: destPath, mimeType },
       }));
-      console.log('remote_upload_file', displayName, baseProvider);
+      console.log('remote_upload_file', displayName);
     } catch (error) {
       console.log('remote_upload_error', error instanceof Error ? error.message : 'unknown');
       showDialog('Upload Error', 'Failed to process file.');
@@ -1032,36 +955,47 @@ export default function ChatInput({
             </Animated.View>
           )}
 
-          {pendingAttachment && (
-            <View style={[
-              styles.attachmentChip,
-              { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
-                borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)' }
-            ]}>
-              <MaterialCommunityIcons
-                name="file-document-outline"
-                size={16}
-                color={getThemeAwareColor('#4a0660', currentTheme)}
-              />
-              <Text
-                style={[styles.attachmentChipText, { color: isDark ? '#fff' : '#333' }]}
-                numberOfLines={1}
-                ellipsizeMode="middle"
-              >
-                {pendingAttachment.name}
-              </Text>
-              <TouchableOpacity
-                onPress={() => setPendingAttachment(null)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <MaterialCommunityIcons
-                  name="close-circle"
-                  size={16}
-                  color={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)'}
-                />
-              </TouchableOpacity>
-            </View>
-          )}
+          {pendingAttachment && (() => {
+            const ext = pendingAttachment.name.split('.').pop()?.toLowerCase() || '';
+            const typeColors: Record<string, string> = {
+              pdf: '#FF5252', doc: '#2196F3', docx: '#2196F3',
+              xls: '#4CAF50', xlsx: '#4CAF50', ppt: '#FF9800', pptx: '#FF9800',
+              jpg: '#9C27B0', jpeg: '#9C27B0', png: '#9C27B0', gif: '#9C27B0',
+              zip: '#795548', rar: '#795548', '7z': '#795548',
+              js: '#FFC107', ts: '#FFC107', py: '#3F51B5',
+              html: '#FF5722', css: '#FF5722',
+            };
+            const typeBg = typeColors[ext] || '#9E9E9E';
+            const typeLabel = ext ? (ext.length > 4 ? ext.substring(0, 4) : ext).toUpperCase() : 'FILE';
+            return (
+              <View style={styles.attachmentChip}>
+                <View style={[styles.pendingFileRow, { backgroundColor: themeColors.borderColor }]}>
+                  <View style={[styles.pendingFileIcon, { backgroundColor: typeBg }]}>
+                    <Text style={styles.pendingFileTypeText}>{typeLabel}</Text>
+                  </View>
+                  <View style={styles.pendingFileInfo}>
+                    <Text style={[styles.pendingFileName, { color: themeColors.text }]} numberOfLines={1} ellipsizeMode="middle">
+                      {pendingAttachment.name}
+                    </Text>
+                    <Text style={[styles.pendingFileSubtitle, { color: themeColors.secondaryText }]}>
+                      File attachment
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setPendingAttachment(null)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={styles.pendingFileClose}
+                  >
+                    <MaterialCommunityIcons
+                      name="close-circle"
+                      size={18}
+                      color={isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)'}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          })()}
 
           <View style={styles.inputWrapper}>
             {!isEditing && (
@@ -1468,20 +1402,45 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   attachmentChip: {
+    marginBottom: 8,
+    width: '100%',
+  },
+  pendingFileRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: 8,
-    alignSelf: 'flex-start',
+    padding: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
   },
-  attachmentChipText: {
-    fontSize: 13,
-    fontWeight: '500',
-    maxWidth: 200,
+  pendingFileIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  pendingFileTypeText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  pendingFileInfo: {
+    flex: 1,
+    marginLeft: 4,
+  },
+  pendingFileName: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  pendingFileSubtitle: {
+    fontSize: 12,
+    opacity: 0.7,
+    marginTop: 2,
+  },
+  pendingFileClose: {
+    padding: 4,
+    marginLeft: 8,
   },
   editButton: {
     width: 40,
