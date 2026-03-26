@@ -164,7 +164,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       saveMessagesImmediate, saveMessages, saveMessagesDebounced, handleApiError
     }), [cancelGenerationRef, setMessages, setStreamingMessageId, setStreamingMessage, 
          setStreamingThinking, setStreamingStats, setIsStreaming, setIsRegenerating, 
-         saveMessagesImmediate, saveMessages, saveMessagesDebounced, updateMessageContentDebounced]);
+         saveMessagesImmediate, saveMessages, saveMessagesDebounced, updateMessageContentDebounced, handleApiError]);
 
   const regenerationService = useMemo(() => 
     new RegenerationService(cancelGenerationRef, {
@@ -173,7 +173,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       saveMessagesImmediate, saveMessages, saveMessagesDebounced, handleApiError
     }), [cancelGenerationRef, setMessages, setStreamingMessageId, setStreamingMessage,
          setStreamingThinking, setStreamingStats, setIsStreaming, setIsRegenerating,
-         saveMessagesImmediate, saveMessages, saveMessagesDebounced]);
+         saveMessagesImmediate, saveMessages, saveMessagesDebounced, handleApiError]);
 
   useFocusEffect(
     useCallback(() => {
