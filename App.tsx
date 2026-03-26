@@ -24,6 +24,7 @@ import { initializeFirebase } from './src/services/FirebaseAuth';
 import { initGeminiService } from './src/services/GeminiInitializer';
 import { initOpenAIService } from './src/services/OpenAIInitializer';
 import { initClaudeService } from './src/services/ClaudeInitializer';
+import { registerWebSearch } from './src/services/tools/WebSearchTool';
 import { PaperProvider, MD3DarkTheme, MD3LightTheme } from 'react-native-paper';
 import { DialogProvider } from './src/context/DialogContext';
 import { ShowDialog } from './src/components/ShowDialog';
@@ -49,6 +50,7 @@ const initializeServices = async () => {
   initGeminiService();
   initOpenAIService();
   initClaudeService();
+  registerWebSearch();
 };
 
 initializeServices();
