@@ -130,26 +130,12 @@ const SystemInfoSection = ({ systemInfo }: SystemInfoSectionProps) => {
                   App Version
                 </Text>
                 <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                  {systemInfo.appVersion}
+                  {systemInfo.appVersion}{Updates.updateId ? ` · ${Updates.updateId.slice(0, 8)}` : ''}
                 </Text>
               </View>
             </View>
           </View>
-          <View style={[styles.settingItem, styles.settingItemBorder]}>
-            <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <MaterialCommunityIcons name="cloud-download-outline" size={22} color={iconColor} />
-              </View>
-              <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingText, { color: themeColors.text }]}>
-                  OTA Version
-                </Text>
-                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                  {Updates.channel ?? 'embedded'}{Updates.updateId ? ` · ${Updates.updateId.slice(0, 8)}` : ''}
-                </Text>
-              </View>
-            </View>
-          </View>        
+
         </>
       )}
     </SettingsSection>
