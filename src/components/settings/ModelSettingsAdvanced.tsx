@@ -9,6 +9,7 @@ type ModelSettings = {
   seed: number;
   ignoreEos: boolean;
   logitBias: Array<Array<number>>;
+  noExtraBuffers: boolean;
 };
 
 type ModelSettingsAdvancedProps = {
@@ -146,6 +147,40 @@ const ModelSettingsAdvanced = ({
           onValueChange={(value) => onSettingsChange({ ignoreEos: value })}
           trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '80' }}
           thumbColor={modelSettings.ignoreEos ? themeColors.primary : themeColors.background}
+        />
+      </View>
+
+      <View style={[styles.settingItem, styles.settingItemBorder]}>
+        <View style={styles.settingLeft}>
+          <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+            <MaterialCommunityIcons name="memory" size={22} color={iconColor} />
+          </View>
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: themeColors.text }]}>
+              Disable Extra Buffers
+            </Text>
+            <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+              Reduces memory usage by skipping weight repacking buffers. Prompt processing may be slower.
+            </Text>
+            {showMlxWarning && (
+              <Text style={styles.unsupportedText}>Unsupported on MLX</Text>
+            )}
+            {(modelSettings.noExtraBuffers ?? false) !== (defaultSettings.noExtraBuffers ?? false) && (
+              <TouchableOpacity
+                onPress={() => onSettingsChange({ noExtraBuffers: defaultSettings.noExtraBuffers ?? false })}
+                style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
+              >
+                <MaterialCommunityIcons name="refresh" size={14} color={iconColor} />
+                <Text style={[styles.resetText, { color: iconColor }]}>Reset to Default</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+        <Switch
+          value={modelSettings.noExtraBuffers}
+          onValueChange={(value) => onSettingsChange({ noExtraBuffers: value })}
+          trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '80' }}
+          thumbColor={modelSettings.noExtraBuffers ? themeColors.primary : themeColors.background}
         />
       </View>
 

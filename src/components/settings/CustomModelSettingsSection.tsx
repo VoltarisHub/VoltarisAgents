@@ -36,6 +36,7 @@ type ModelSettings = {
   xtcThreshold: number;
   typicalP: number;
   enableThinking: boolean;
+  noExtraBuffers: boolean;
 };
 
 type CustomModelSettingsSectionProps = {

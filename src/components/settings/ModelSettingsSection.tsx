@@ -36,6 +36,7 @@ type ModelSettings = {
   xtcThreshold: number;
   typicalP: number;
   enableThinking: boolean;
+  noExtraBuffers: boolean;
 };
 
 export type { GpuConfig };
@@ -126,7 +127,7 @@ const ModelSettingsSection = ({
               </View>
             </View>
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-              Sampling, penalties, and other parameters
+              Chat behavior and generation settings
             </Text>
           </View>
         </View>
