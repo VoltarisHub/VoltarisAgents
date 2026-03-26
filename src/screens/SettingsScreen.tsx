@@ -757,6 +757,8 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           gpuConfig={gpuConfig}
           onToggleGpu={handleGpuToggle}
           onGpuLayersChange={handleGpuLayersChange}
+          noExtraBuffers={modelSettings.noExtraBuffers}
+          onToggleNoExtraBuffers={(enabled) => handleSettingsChange({ noExtraBuffers: enabled })}
           showAppleFoundationToggle={isAppleDevice}
           appleFoundationEnabled={appleFoundationEnabled}
           onToggleAppleFoundation={handleAppleFoundationToggle}
