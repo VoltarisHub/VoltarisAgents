@@ -1,6 +1,7 @@
 import { fs as FileSystem } from './fs';
 import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { EventEmitter } from './EventEmitter';
 import { FileManager } from './FileManager';
 import { StoredModel } from './ModelDownloaderTypes';
@@ -182,6 +183,8 @@ export class StoredModelsManager extends EventEmitter {
   }
 
   private async getMlxIds(): Promise<string[]> {
+    if (Platform.OS !== 'ios') return [];
+
     const ids = new Set<string>();
 
     try {
@@ -402,7 +405,9 @@ export class StoredModelsManager extends EventEmitter {
       if (modelToDelete && modelToDelete.modelFormat === ModelFormat.MLX) {
         try {
           const modelId = modelToDelete.name;
-          await ModelManager.deleteModel(modelId);
+          if (Platform.OS === 'ios') {
+            await ModelManager.deleteModel(modelId);
+          }
           console.log('mlx_model_deleted', modelId);
         } catch (error) {
           console.log('mlx_delete_error', error);
@@ -512,7 +517,7 @@ export class StoredModelsManager extends EventEmitter {
         so stale entries don't linger after file deletion.
       */
       for (const m of models) {
-        if (m.modelFormat === ModelFormat.MLX) {
+        if (m.modelFormat === ModelFormat.MLX && Platform.OS === 'ios') {
           try {
             await ModelManager.deleteModel(m.name);
           } catch {
