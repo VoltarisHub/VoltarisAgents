@@ -390,7 +390,7 @@ class LlamaManager {
         ...(typeof initOverrides?.n_parallel === 'number' ? { n_parallel: Math.max(1, Math.round(initOverrides.n_parallel)) } : {}),
         ...(typeof initOverrides?.n_threads === 'number' ? { n_threads: Math.max(1, Math.round(initOverrides.n_threads)) } : {}),
         n_gpu_layers: effectiveGpuLayers,
-        no_extra_bufts: this.settingsManager.getSettings().noExtraBuffers,
+        no_extra_bufts: this.settingsManager.getNoExtraBuffers(),
       };
       console.log('init_model_params', JSON.stringify(initParams, null, 2));
 
@@ -507,6 +507,14 @@ class LlamaManager {
 
   async setGrammar(grammar: string) {
     return this.settingsManager.setGrammar(grammar);
+  }
+
+  getNoExtraBuffers(): boolean {
+    return this.settingsManager.getNoExtraBuffers();
+  }
+
+  async setNoExtraBuffers(enabled: boolean) {
+    return this.settingsManager.setNoExtraBuffers(enabled);
   }
 
   getJinja(): boolean {
