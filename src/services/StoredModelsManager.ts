@@ -654,43 +654,42 @@ export class StoredModelsManager extends EventEmitter {
   }
 
   async exportModel(modelPath: string, modelName: string): Promise<void> {
-    const fileInfo = await FileSystem.getInfoAsync(modelPath);
-    if (!fileInfo.exists) {
-      throw new Error('Model file does not exist');
-    }
-
-    const isAvailable = await Sharing.isAvailableAsync();
-    if (!isAvailable) {
-      throw new Error('Sharing is not available on this device');
-    }
-
-    const tempDir = FileSystem.cacheDirectory + 'export/';
-    const tempDirInfo = await FileSystem.getInfoAsync(tempDir);
-    if (!tempDirInfo.exists) {
-      await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true });
-    }
-
-    const tempFilePath = tempDir + modelName;
-
-    const existingTemp = await FileSystem.getInfoAsync(tempFilePath);
-    if (existingTemp.exists) {
-      await FileSystem.deleteAsync(tempFilePath, { idempotent: true });
-    }
-
-    await FileSystem.copyAsync({
-      from: modelPath,
-      to: tempFilePath,
-    });
-
     try {
+
+      const fileInfo = await FileSystem.getInfoAsync(modelPath);
+      if (!fileInfo.exists) {
+        throw new Error('Model file does not exist');
+      }
+
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        throw new Error('Sharing is not available on this device');
+      }
+
+      const tempDir = FileSystem.cacheDirectory + 'export/';
+      const tempDirInfo = await FileSystem.getInfoAsync(tempDir);
+      if (!tempDirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true });
+      }
+
+      const tempFilePath = tempDir + modelName;
+      
+      await FileSystem.copyAsync({
+        from: modelPath,
+        to: tempFilePath
+      });
+
+
       await Sharing.shareAsync(tempFilePath, {
         mimeType: 'application/octet-stream',
         dialogTitle: `Export ${modelName}`,
       });
-    } finally {
-      FileSystem.deleteAsync(tempFilePath, { idempotent: true }).catch(() => {});
-    }
 
-    this.emit('modelExported', { modelName, tempFilePath });
+      
+      this.emit('modelExported', { modelName, tempFilePath });
+
+    } catch (error) {
+      throw error;
+    }
   }
 }

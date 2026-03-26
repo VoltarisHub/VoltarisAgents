@@ -484,7 +484,7 @@ const ApiKeySection: React.FC = () => {
                       borderColor: themeColors.borderColor,
                     }
                   ]}
-                  placeholder="Optional. Falls back to Settings → Model Settings → System Prompt"
+                  placeholder="Default: Settings → Model Settings → System Prompt"
                   placeholderTextColor={themeColors.secondaryText}
                   value={item.systemInstruction}
                   onChangeText={(text) => updateSystemInstruction(item.id, text)}
