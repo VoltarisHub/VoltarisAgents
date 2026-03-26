@@ -171,6 +171,138 @@ export class RegenerationService {
     }
   }
 
+  async regenerateFromBase(
+    baseMessages: ChatMessage[],
+    activeProvider: ProviderType | null,
+    settings: any
+  ): Promise<void> {
+    if (baseMessages.length < 1) return;
+
+    const validProvider = await this.validateProvider(activeProvider);
+
+    const responderModelName = await this.resolveResponderModelName(validProvider);
+    if (responderModelName) {
+      console.log('resp_model', responderModelName);
+    }
+
+    const assistantMessage: ChatMessage = {
+      id: generateRandomId(),
+      content: '',
+      role: 'assistant',
+      modelName: responderModelName,
+      stats: {
+        duration: 0,
+        tokens: 0,
+      },
+    };
+
+    const updatedMessages = [...baseMessages, assistantMessage];
+    this.callbacks.setMessages(updatedMessages);
+    await this.callbacks.saveMessagesImmediate(updatedMessages);
+    this.callbacks.setIsRegenerating(true);
+    this.cancelGenerationRef.current = false;
+
+    this.callbacks.setStreamingMessageId(assistantMessage.id);
+    this.callbacks.setStreamingMessage('');
+    this.callbacks.setStreamingThinking('');
+    this.callbacks.setStreamingStats({ tokens: 0, duration: 0 });
+    this.callbacks.setIsStreaming(true);
+
+    const startTime = Date.now();
+    let tokenCount = 0;
+    let fullResponse = '';
+    let thinking = '';
+    let isThinking = false;
+    let firstTokenTime: number | null = null;
+
+    try {
+      const isOnlineModel = !!validProvider && ['gemini','chatgpt','claude'].includes(OnlineModelService.getBaseProvider(validProvider));
+      const isAppleFoundation = validProvider === 'apple-foundation';
+
+      if (isOnlineModel) {
+        await this.processOnlineRegeneration(
+          validProvider,
+          baseMessages,
+          settings,
+          assistantMessage,
+          startTime,
+          tokenCount,
+          fullResponse,
+          firstTokenTime
+        );
+      } else if (isAppleFoundation) {
+        await this.processAppleFoundationRegeneration(
+          baseMessages,
+          settings,
+          assistantMessage,
+          startTime,
+          tokenCount,
+          fullResponse,
+          firstTokenTime
+        );
+      } else {
+        await this.processLocalRegeneration(
+          baseMessages,
+          settings,
+          assistantMessage,
+          startTime,
+          tokenCount,
+          fullResponse,
+          thinking,
+          isThinking,
+          firstTokenTime
+        );
+      }
+    } catch (error) {
+      throw error;
+    } finally {
+      this.callbacks.setIsRegenerating(false);
+      this.callbacks.setIsStreaming(false);
+      this.callbacks.setStreamingMessageId(null);
+      this.callbacks.setStreamingThinking('');
+      this.callbacks.setStreamingStats(null);
+      this.callbacks.saveMessagesDebounced.cancel();
+    }
+  }
+
+  private async validateProvider(activeProvider: ProviderType | null): Promise<ProviderType> {
+    const hasLocalModel = !!engineService.getActiveModelPath();
+    let hasValidModel = false;
+    let validProvider = activeProvider;
+
+    if (!activeProvider) {
+      hasValidModel = false;
+      validProvider = null;
+    } else if (activeProvider === 'local') {
+      hasValidModel = hasLocalModel;
+    } else if (activeProvider === 'apple-foundation') {
+      try {
+        const available = appleFoundationService.isAvailable();
+        const enabled = await appleFoundationService.isEnabled();
+        hasValidModel = available && enabled;
+        if (!hasValidModel) validProvider = null;
+      } catch {
+        hasValidModel = false;
+        validProvider = null;
+      }
+    } else {
+      try {
+        const hasApiKey = await onlineModelService.hasApiKey(activeProvider);
+        hasValidModel = hasApiKey;
+        if (!hasApiKey) validProvider = null;
+      } catch {
+        hasValidModel = false;
+        validProvider = null;
+      }
+    }
+
+    if (!hasValidModel || !validProvider) {
+      throw new Error('No valid model selected');
+    }
+
+    return validProvider;
+  }
+
   private async processOnlineRegeneration(
     validProvider: string,
     newMessages: ChatMessage[],
