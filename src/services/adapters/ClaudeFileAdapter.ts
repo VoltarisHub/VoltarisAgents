@@ -14,7 +14,7 @@ export type ClaudeFile = {
 const BETA_HEADER = 'files-api-2025-04-14';
 
 const ALLOWED_EXTENSIONS = [
-  'pdf', 'txt', 'docx', 'xlsx', 'csv', 'html', 'md',
+  'pdf', 'txt',
   'jpg', 'jpeg', 'png', 'gif', 'webp',
 ];
 
@@ -25,11 +25,6 @@ export const getClaudeMimeType = (filename: string): string => {
   const mimeMap: Record<string, string> = {
     pdf: 'application/pdf',
     txt: 'text/plain',
-    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    csv: 'text/csv',
-    html: 'text/html',
-    md: 'text/markdown',
     jpg: 'image/jpeg',
     jpeg: 'image/jpeg',
     png: 'image/png',

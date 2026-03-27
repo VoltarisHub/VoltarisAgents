@@ -28,8 +28,6 @@ interface ApiKeyItem {
 
 const openAIPresetUrls = [
   { label: 'OpenAI', url: 'https://api.openai.com/v1' },
-  { label: 'Ollama', url: 'http://localhost:11434/v1' },
-  { label: 'LM Studio', url: 'http://localhost:1234/v1' },
   { label: 'OpenRouter', url: 'https://openrouter.ai/api/v1' },
   { label: 'Groq', url: 'https://api.groq.com/openai/v1' },
   { label: 'Together', url: 'https://api.together.xyz/v1' }
