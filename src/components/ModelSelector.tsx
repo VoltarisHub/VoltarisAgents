@@ -316,11 +316,15 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const loadCloneModels = async () => {
       try {
         const clones = (await onlineModelService.listClones()).filter(c => ['gemini', 'chatgpt', 'claude'].includes(c.baseProvider));
-        const models = clones.map(c => ({
-          id: c.id,
-          name: c.displayName,
-          provider: c.baseProvider,
-          isOnline: true as const,
+        const models = await Promise.all(clones.map(async c => {
+          const savedModel = await onlineModelService.getModelName(c.id);
+          const modelName = savedModel || onlineModelService.getDefaultModelName(c.baseProvider);
+          return {
+            id: c.id,
+            name: modelName,
+            provider: c.baseProvider,
+            isOnline: true as const,
+          };
         }));
         setCloneModels(models);
         return clones;
