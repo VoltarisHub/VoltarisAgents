@@ -164,7 +164,7 @@ export class GeminiService {
   const baseUrl = await this.baseUrlProvider(provider);
   const url = `${baseUrl}/${modelPath}:${shouldStreamTokens ? 'streamGenerateContent' : 'generateContent'}?key=${apiKey}`;
 
-      const requestBody = {
+      const requestBody: any = {
         contents: formattedMessages,
         generationConfig: {
           temperature,
@@ -172,6 +172,12 @@ export class GeminiService {
           topP,
         }
       };
+      
+      if (systemMessage) {
+        requestBody.systemInstruction = {
+          parts: [{ text: systemMessage.content }]
+        };
+      }
 
       const headers = {
         'Content-Type': 'application/json'
