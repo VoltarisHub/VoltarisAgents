@@ -41,6 +41,7 @@ export class MessageProcessingService {
   ): Promise<void> {
     const currentChat = chatManager.getCurrentChat();
     if (!currentChat) return;
+    let messageId: string | null = null;
 
     console.log('process_message_start', { provider: activeProvider, chatId: currentChat.id, messageCount: currentChat.messages.length });
 
@@ -90,7 +91,7 @@ export class MessageProcessingService {
       const lastMessage = updatedChat.messages.slice(-1)[0];
       if (!lastMessage) return;
       
-      const messageId = lastMessage.id;
+      messageId = lastMessage.id;
       
       this.callbacks.setStreamingMessageId(messageId);
       this.callbacks.setStreamingMessage('');
@@ -152,10 +153,23 @@ export class MessageProcessingService {
       
     } catch (error) {
       this.callbacks.setIsStreaming(false);
-      this.callbacks.setStreamingMessageId(null);
       this.callbacks.setStreamingThinking('');
       this.callbacks.setStreamingStats(null);
       this.callbacks.setIsRegenerating(false);
+      const errMsg = error instanceof Error ? error.message : 'unknown';
+      console.log('process_message_error', errMsg);
+      if (messageId) {
+        const fallback = errMsg === 'Model not initialized'
+          ? 'Model not initialized. Please load a model and try again.'
+          : 'Sorry, an error occurred while generating a response. Please try again.';
+        await chatManager.updateMessageContent(
+          messageId,
+          fallback,
+          '',
+          { duration: 0, tokens: 0 }
+        );
+      }
+      this.callbacks.setStreamingMessageId(null);
       throw error;
     }
   }

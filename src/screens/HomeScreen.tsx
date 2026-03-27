@@ -82,6 +82,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [onlineModelProvider, setOnlineModelProvider] = useState<string | null>(null);
   const appStateRef = useRef(AppState.currentState);
   const isFirstLaunchRef = useRef(true);
+  const handleApiErrorRef = useRef<((error: unknown, provider: 'Gemini' | 'OpenAI' | 'Claude') => void) | null>(null);
   const [activeProvider, setActiveProvider] = useState<ProviderType | null>(null);
   const { loadModel, unloadModel, setSelectedModelPath, isModelLoading, selectedModelPath } = useModel();
   const flatListRef = useRef<FlatList>(null);
@@ -157,23 +158,28 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     );
   }, 300)).current;
 
+  const apiErrorBridge = useCallback((error: unknown, provider: 'Gemini' | 'OpenAI' | 'Claude') => {
+    console.log('api_error_bridge', provider, !!handleApiErrorRef.current);
+    handleApiErrorRef.current?.(error, provider);
+  }, []);
+
   const messageProcessingService = useMemo(() => 
     new MessageProcessingService(cancelGenerationRef, {
       setMessages, setStreamingMessageId, setStreamingMessage, setStreamingThinking, 
       setStreamingStats, setIsStreaming, setIsRegenerating, updateMessageContentDebounced,
-      saveMessagesImmediate, saveMessages, saveMessagesDebounced, handleApiError
+      saveMessagesImmediate, saveMessages, saveMessagesDebounced, handleApiError: apiErrorBridge
     }), [cancelGenerationRef, setMessages, setStreamingMessageId, setStreamingMessage, 
          setStreamingThinking, setStreamingStats, setIsStreaming, setIsRegenerating, 
-         saveMessagesImmediate, saveMessages, saveMessagesDebounced, updateMessageContentDebounced, handleApiError]);
+         saveMessagesImmediate, saveMessages, saveMessagesDebounced, updateMessageContentDebounced, apiErrorBridge]);
 
   const regenerationService = useMemo(() => 
     new RegenerationService(cancelGenerationRef, {
       setMessages, setStreamingMessageId, setStreamingMessage, setStreamingThinking,
       setStreamingStats, setIsStreaming, setIsRegenerating,
-      saveMessagesImmediate, saveMessages, saveMessagesDebounced, handleApiError
+      saveMessagesImmediate, saveMessages, saveMessagesDebounced, handleApiError: apiErrorBridge
     }), [cancelGenerationRef, setMessages, setStreamingMessageId, setStreamingMessage,
          setStreamingThinking, setStreamingStats, setIsStreaming, setIsRegenerating,
-         saveMessagesImmediate, saveMessages, saveMessagesDebounced, handleApiError]);
+         saveMessagesImmediate, saveMessages, saveMessagesDebounced, apiErrorBridge]);
 
   useFocusEffect(
     useCallback(() => {
@@ -500,9 +506,10 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   }, [isLoading, isRegenerating, isStreaming, activeProvider]);
 
   const handleApiError = (error: unknown, provider: 'Gemini' | 'OpenAI' | 'Claude') => {
-    
+    console.log('api_error_handler', provider, error instanceof Error ? error.message.substring(0, 80) : 'unknown');
     if (error instanceof Error) {
       if (error.message.startsWith('QUOTA_EXCEEDED:')) {
+        console.log('dialog_quota_show');
         showDialog(
           `${provider} API Quota Exceeded`,
           `Your ${provider} API quota has been exceeded. Please try again later or upgrade your API plan.`,
@@ -512,7 +519,18 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         return;
       }
       
+      if (error.message.startsWith('RATE_LIMIT:')) {
+        const detail = error.message.replace('RATE_LIMIT: ', '');
+        console.log('dialog_rate_limit_show', detail.substring(0, 80));
+        showDialog(
+          `${provider} Rate Limit`,
+          detail,
+        );
+        return;
+      }
+      
       if (error.message.startsWith('AUTHENTICATION_ERROR:')) {
+        console.log('dialog_auth_show');
         showDialog(
           `${provider} API Authentication Error`,
           `Your ${provider} API key appears to be invalid. Please check your API key in Settings.`,
@@ -523,6 +541,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       }
       
       if (error.message.startsWith('CONTENT_FILTERED:')) {
+        console.log('dialog_content_show');
         showDialog(
           'Content Policy Violation',
           'Your request was blocked due to content policy violations. Please modify your message and try again.',
@@ -531,6 +550,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       }
       
       if (error.message.startsWith('CONTEXT_LENGTH_EXCEEDED:')) {
+        console.log('dialog_context_show');
         showDialog(
           'Message Too Long',
           'Your message is too long for the model\'s context window. Please shorten your input or start a new chat.',
@@ -539,6 +559,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       }
       
       if (error.message.startsWith('SERVER_ERROR:')) {
+        console.log('dialog_server_show');
         showDialog(
           `${provider} Server Error`,
           `The ${provider} API is currently experiencing issues. Please try again later.`,
@@ -547,6 +568,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       }
       
       if (error.message.startsWith('INVALID_REQUEST:')) {
+        console.log('dialog_invalid_show');
         showDialog(
           'Invalid Request',
           `The request to the ${provider} API was invalid. Please try again with different input.`,
@@ -555,6 +577,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       }
       
       if (error.message.startsWith('PERMISSION_DENIED:')) {
+        console.log('dialog_permission_show');
         showDialog(
           'Permission Denied',
           `You don't have permission to access this ${provider} model or feature.`,
@@ -563,6 +586,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       }
       
       if (error.message.startsWith('NOT_FOUND:')) {
+        console.log('dialog_not_found_show');
         showDialog(
           'Model Not Found',
           `The requested ${provider} model was not found. It may be deprecated or unavailable.`,
@@ -570,17 +594,20 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         return;
       }
       
+      console.log('dialog_api_error_show');
       showDialog(
         `${provider} API Error`,
         error.message,
       );
     } else {
+      console.log('dialog_unknown_show');
       showDialog(
         `${provider} API Error`,
         'Unknown error occurred',
       );
     }
   };
+  handleApiErrorRef.current = handleApiError;
 
   const processMessage = async (providerOverride?: ProviderType | null) => {
     const provider = providerOverride ?? activeProvider;

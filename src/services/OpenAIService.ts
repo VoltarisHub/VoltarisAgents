@@ -317,8 +317,23 @@ export class OpenAIService {
         const errorText = await response.text();
         console.log('openai_api_error', response.status, errorText.substring(0, 500));
         
-        if (response.status === 429 || errorText.includes("quota") || errorText.includes("rate limit") || errorText.includes("insufficient_quota")) {
-          throw new Error("QUOTA_EXCEEDED: Your OpenAI API quota has been exceeded. Please try again later or upgrade your API plan.");
+        if (response.status === 429) {
+          let parsed: any;
+          try { parsed = JSON.parse(errorText); } catch {}
+          const msg = parsed?.error?.message || errorText;
+          const code = parsed?.error?.code || '';
+
+          if (code === 'insufficient_quota' || msg.includes('insufficient_quota')) {
+            throw new Error("QUOTA_EXCEEDED: Your OpenAI API quota has been exceeded. Please try again later or upgrade your API plan.");
+          }
+          if (msg.includes('Request too large') || msg.includes('tokens per min')) {
+            const limitMatch = msg.match(/Limit (\d[\d,]*)/);
+            const reqMatch = msg.match(/Requested (\d[\d,]*)/);
+            const limit = limitMatch?.[1] || 'unknown';
+            const requested = reqMatch?.[1] || 'unknown';
+            throw new Error(`RATE_LIMIT: The request contains too many tokens (${requested}) for this model's limit (${limit} TPM). Try removing some files or shortening the conversation.`);
+          }
+          throw new Error(`RATE_LIMIT: ${msg}`);
         }
         
         if (response.status === 400) {

@@ -94,6 +94,9 @@ const AppDialog = (({
 }: DialogProps) => {
   const { theme: currentTheme } = useTheme();
   const systemScheme = useColorScheme();
+  React.useEffect(() => {
+    console.log('dialog_render', visible, title || '');
+  }, [visible, title]);
   const resolvedTheme: 'light' | 'dark' =
     currentTheme === 'light' || currentTheme === 'dark'
       ? currentTheme
