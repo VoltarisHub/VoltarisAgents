@@ -688,7 +688,14 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     try {
       cancelGenerationRef.current = true;
       engineService.stop();
+      if (activeProvider === 'local') {
+        try { await llamaManager.stopCompletion(); } catch {}
+      } else if (activeProvider === 'apple-foundation') {
+        appleFoundationService.cancel();
+      }
+      setIsLoading(false);
       resetStreamingState();
+      cancelGenerationRef.current = true;
       await ChatLifecycleService.startNewChat({ setChat, setMessages });
     } catch (error) {
       showDialog(
