@@ -106,6 +106,8 @@ const ModelSettingsSection = ({
         onDialogOpen={onDialogOpen}
       />
 
+      <View style={styles.separator} />
+
       <TouchableOpacity
         style={styles.settingItem}
         onPress={onModelParametersPress}
@@ -187,6 +189,11 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.5,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: 'rgba(150, 150, 150, 0.1)',
+    marginHorizontal: 16,
   },
 });
 
