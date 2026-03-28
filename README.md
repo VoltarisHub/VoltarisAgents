@@ -1,7 +1,7 @@
 
 ## InferrLM (Previously Inferra)
 <p>
-  <a href="" target="_blank"><img src="https://img.shields.io/badge/App_Version-0.8.5-6a1b9a" alt="App Version 0.8.5"></a>
+  <a href="" target="_blank"><img src="https://img.shields.io/badge/App_Version-0.8.6-6a1b9a" alt="App Version 0.8.6"></a>
   <a href="https://opensource.org/licenses/AGPL-3.0" target="_blank"><img src="https://img.shields.io/badge/License-AGPL--3.0-orange" alt="License: AGPL-3.0"></a>
 </p>
 <p>
@@ -169,21 +169,6 @@ Read our [Contributing Guide](docs/CONTRIBUTING.md) for detailed contribution gu
 - [react-native-rag](https://github.com/software-mansion-labs/react-native-rag) + [@langchain/textsplitters](https://github.com/langchain-ai/langchainjs) - RAG implementation for React Native that powers the document retrieval and ingestion features using LangChain.
 - [react-native-ai](https://github.com/callstackincubator/ai) - Adaptor that provides Apple Foundation bridge from Swift to JavaScript.
 - If someone thinks they also need to be mentioned here, please let me know.
-
-## Tech Stack
-
-- **React Native + Expo SDK 54**: For cross-platform iOS and Android support.
-- **TypeScript**: Strongly typed JavaScript for the entire codebase.
-- **Firebase**: For authentication, Firestore database, and cloud services.
-- **inferrlm-llama.rn**: Custom llama.cpp bridge for GGUF model inference on Android and iOS.
-- **react-native-nitro-mlx**: Apple Silicon MLX inference engine for iOS via Nitro Modules.
-- **react-native-nitro-markdown**: Native C++ markdown renderer for chat messages.
-- **React Navigation**: For navigation and routing.
-- **React Native Paper**: Material Design UI components.
-- **React Native ML Kit**: For on-device text recognition and OCR.
-- **react-native-tcp-socket**: For HTTP server implementation and network communication.
-- **ESLint**: For code quality.
-- **Expo Modules**: For camera, file system, notifications, device APIs and more.
 
 ## Star History
 

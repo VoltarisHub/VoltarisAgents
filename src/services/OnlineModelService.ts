@@ -240,8 +240,8 @@ export class OnlineModelService {
   getDefaultModelName(provider: string): string {
     const base = OnlineModelService.getBaseProvider(provider);
     const defaults: Record<string, string> = {
-      gemini: 'gemini-3.1-pro-preview',
-      chatgpt: 'gpt-5.4',
+      gemini: 'gemini-2.5-flash',
+      chatgpt: 'gpt-4.1',
       claude: 'claude-sonnet-4-6'
     };
     return defaults[base] || '';

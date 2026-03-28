@@ -138,7 +138,7 @@ export class GeminiService {
       const temperature = options.temperature ?? 0.7;
       const maxTokens = options.maxTokens ?? 1024;
       const topP = options.topP ?? 0.9;
-      const model = options.model ?? 'gemini-3.1-pro-preview';
+      const model = options.model ?? 'gemini-2.5-flash';
       
       const shouldStream = !!onToken;
       const shouldStreamTokens = options.streamTokens ?? true;
