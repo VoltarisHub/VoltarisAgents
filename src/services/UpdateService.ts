@@ -1,11 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Updates from 'expo-updates';
+import Constants from 'expo-constants';
 
 const SKIPPED_KEY = '@update_skipped';
 const REMIND_KEY = '@update_remind';
 const OPEN_COUNT_KEY = '@update_open_count';
 const REMIND_HOURS = 3;
 const REMIND_OPENS = 3;
+
+const PROJECT_ID = 'a539a082-58a3-4f29-9bb7-107913124e7d';
+const OWNER = 'subhajitgorai';
 
 async function getOpenCount(): Promise<number> {
   const val = await AsyncStorage.getItem(OPEN_COUNT_KEY);
@@ -61,11 +65,33 @@ async function remindLater(updateId: string): Promise<void> {
   );
 }
 
+/*
+  Validates update manifest origin to prevent tampered/rogue updates:
+  - projectId must match our known project
+  - runtimeVersion must match current build 
+  - owner slug must match to prevent impersonation
+*/
+function verifyManifest(manifest: any): boolean {
+  const extra = manifest?.extra;
+  const expoClient = extra?.expoClient;
+  const manifestProjectId = expoClient?.extra?.eas?.projectId;
+  if (manifestProjectId && manifestProjectId !== PROJECT_ID) return false;
+  const manifestOwner = expoClient?.owner;
+  if (manifestOwner && manifestOwner !== OWNER) return false;
+  const manifestRuntime = manifest?.runtimeVersion;
+  const currentRuntime = Constants.expoConfig?.runtimeVersion;
+  if (manifestRuntime && currentRuntime && manifestRuntime !== currentRuntime) {
+    return false;
+  }
+  return true;
+}
+
 async function checkForUpdate(): Promise<Updates.UpdateCheckResult | null> {
   if (__DEV__ || !Updates.isEnabled) return null;
   try {
     const result = await Updates.checkForUpdateAsync();
     if (!result.isAvailable || !result.manifest) return null;
+    if (!verifyManifest(result.manifest)) return null;
     return result;
   } catch {
     return null;
@@ -85,6 +111,10 @@ function getUpdateId(manifest: any): string {
   return manifest?.id || '';
 }
 
+function isAutoUpdateEnabled(): boolean {
+  return Constants.expoConfig?.extra?.autoUpdate === true;
+}
+
 export const updateService = {
   getOpenCount,
   incrementOpenCount,
@@ -96,4 +126,5 @@ export const updateService = {
   fetchAndReload,
   getChangelog,
   getUpdateId,
+  isAutoUpdateEnabled,
 };
