@@ -264,12 +264,21 @@ export default function App() {
 
   useEffect(() => {
     async function handleAutoUpdate() {
-      const result = await updateService.checkForUpdate();
-      if (result?.manifest && updateService.isAutoUpdate(result.manifest)) {
-        try {
-          await updateService.fetchAndReload();
+      try {
+        const result = await Promise.race([
+          updateService.checkForUpdate(),
+          new Promise<null>(resolve => setTimeout(() => resolve(null), 5000)),
+        ]);
+        if (result?.manifest && updateService.isManifestAutoUpdate(result.manifest)) {
+          await Promise.race([
+            updateService.fetchAndReload(),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('fetch_timeout')), 15000)
+            ),
+          ]);
           return;
-        } catch {}
+        }
+      } catch {
       }
       setAutoUpdated(true);
     }

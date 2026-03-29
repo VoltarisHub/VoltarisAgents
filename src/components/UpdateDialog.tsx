@@ -27,9 +27,9 @@ export default function UpdateDialog() {
 
   async function check() {
     await updateService.incrementOpenCount();
-    if (!updateService.isAutoUpdateEnabled()) return;
     const result = await updateService.checkForUpdate();
     if (!result || !result.manifest) return;
+    if (updateService.isManifestAutoUpdate(result.manifest)) return;
     const id = updateService.getUpdateId(result.manifest);
     if (!id) return;
     if (await updateService.isSkipped(id)) return;

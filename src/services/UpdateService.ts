@@ -1,6 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Updates from 'expo-updates';
-import Constants from 'expo-constants';
 
 const SKIPPED_KEY = '@update_skipped';
 const REMIND_KEY = '@update_remind';
@@ -47,7 +46,7 @@ async function shouldRemind(updateId: string): Promise<boolean> {
       Date.now() - remind.timestamp >= REMIND_HOURS * 60 * 60 * 1000;
     const openCount = await getOpenCount();
     const opensPassed = openCount - remind.openCount >= REMIND_OPENS;
-    return hoursPassed && opensPassed;
+    return hoursPassed || opensPassed;
   } catch {
     return true;
   }
@@ -69,14 +68,9 @@ function verifyManifest(manifest: any): boolean {
   const extra = manifest?.extra;
   const expoClient = extra?.expoClient;
   const manifestProjectId = expoClient?.extra?.eas?.projectId;
-  if (manifestProjectId && manifestProjectId !== PROJECT_ID) return false;
+  if (!manifestProjectId || manifestProjectId !== PROJECT_ID) return false;
   const manifestOwner = expoClient?.owner;
-  if (manifestOwner && manifestOwner !== OWNER) return false;
-  const manifestRuntime = manifest?.runtimeVersion;
-  const currentRuntime = Constants.expoConfig?.runtimeVersion;
-  if (manifestRuntime && currentRuntime && manifestRuntime !== currentRuntime) {
-    return false;
-  }
+  if (!manifestOwner || manifestOwner !== OWNER) return false;
   return true;
 }
 
@@ -105,8 +99,8 @@ function getUpdateId(manifest: any): string {
   return manifest?.id || '';
 }
 
-function isAutoUpdateEnabled(): boolean {
-  return Constants.expoConfig?.extra?.autoUpdate === true;
+function isManifestAutoUpdate(manifest: any): boolean {
+  return manifest?.extra?.expoClient?.extra?.autoUpdate === true;
 }
 
 export const updateService = {
@@ -120,5 +114,5 @@ export const updateService = {
   fetchAndReload,
   getChangelog,
   getUpdateId,
-  isAutoUpdateEnabled,
+  isManifestAutoUpdate,
 };
