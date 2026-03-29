@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, Switch, Platform } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, Switch } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
@@ -28,9 +28,6 @@ type ModelSettingsCoreProps = {
   onToggleAppleFoundation?: (enabled: boolean) => void;
   engineEnabled?: Record<'llama' | 'mlx', boolean>;
   onEngineToggle?: (engine: 'llama' | 'mlx', enabled: boolean) => void;
-  gpuConfig?: GpuConfig;
-  onToggleGpu?: (enabled: boolean) => void | Promise<void>;
-  onGpuLayersChange?: (layers: number) => void | Promise<void>;
   onDialogOpen: (config: any) => void;
 };
 
@@ -44,42 +41,10 @@ const ModelSettingsCore = ({
   onToggleAppleFoundation,
   engineEnabled,
   onEngineToggle,
-  gpuConfig,
-  onToggleGpu,
 }: ModelSettingsCoreProps) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
   const iconColor = currentTheme === 'dark' ? '#FFFFFF' : themeColors.primary;
-
-  const showGpuSettings = Boolean(
-    gpuConfig &&
-    onToggleGpu
-  );
-
-  const gpuSupportMessage = React.useMemo(() => {
-    if (!gpuConfig) {
-      return null;
-    }
-
-    if (gpuConfig.supported && gpuConfig.reason !== 'unknown') {
-      return null;
-    }
-
-    switch (gpuConfig.reason) {
-      case 'ios_version':
-        return 'Metal acceleration requires iOS 18 or newer.';
-      case 'no_adreno':
-        return 'OpenCL acceleration needs an Adreno GPU.';
-      case 'missing_cpu_features':
-        return 'This CPU has missing required features for acceleration.';
-      case 'unknown':
-        return Platform.OS === 'android'
-          ? 'Device GPU capabilities could not be verified. Results may vary.'
-          : null;
-      default:
-        return null;
-    }
-  }, [gpuConfig]);
 
   return (
     <>
@@ -167,65 +132,6 @@ const ModelSettingsCore = ({
           onToggle={onEngineToggle}
         />
       )}
-
-      {showGpuSettings && gpuConfig && (
-        <>
-          <View style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <View
-                style={[
-                  styles.iconContainer,
-                  {
-                    backgroundColor:
-                      currentTheme === 'dark'
-                        ? 'rgba(255, 255, 255, 0.2)'
-                        : themeColors.primary + '20',
-                  },
-                ]}
-              >
-                <MaterialCommunityIcons name="chip" size={22} color={iconColor} />
-              </View>
-              <View style={styles.settingTextContainer}>
-                <View style={styles.labelRow}>
-                  <Text style={[styles.settingText, { color: themeColors.text }]}>
-                    {gpuConfig.label}
-                  </Text>
-                  {gpuConfig.experimental && (
-                    <View
-                      style={[
-                        styles.gpuBadge,
-                        {
-                          backgroundColor:
-                            currentTheme === 'dark'
-                              ? 'rgba(255, 255, 255, 0.2)'
-                              : themeColors.primary + '20',
-                        },
-                      ]}
-                    >
-                      <Text style={[styles.gpuBadgeText, { color: iconColor }]}>EXPERIMENTAL</Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                  {gpuConfig.description}
-                </Text>
-                {gpuSupportMessage && (
-                  <Text style={[styles.gpuSupportText, { color: themeColors.secondaryText }]}>
-                    {gpuSupportMessage}
-                  </Text>
-                )}
-              </View>
-            </View>
-            <Switch
-              value={gpuConfig.enabled}
-              onValueChange={value => onToggleGpu?.(value)}
-              disabled={!gpuConfig.supported}
-              trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '80' }}
-              thumbColor={gpuConfig.enabled ? themeColors.primary : themeColors.background}
-            />
-          </View>
-        </>
-      )}
     </>
   );
 };
@@ -290,23 +196,6 @@ const styles = StyleSheet.create({
   resetText: {
     fontSize: 12,
     fontWeight: '500',
-  },
-  gpuBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  gpuBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  gpuSupportText: {
-    fontSize: 12,
-    marginTop: 6,
-  },
-  disabledSettingItem: {
-    opacity: 0.5,
   },
 });
 

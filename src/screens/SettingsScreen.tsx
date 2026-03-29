@@ -21,7 +21,7 @@ import { modelDownloader } from '../services/ModelDownloader';
 import AppearanceSection from '../components/settings/AppearanceSection';
 import { getCurrentUser } from '../services/FirebaseService';
 import SupportSection from '../components/settings/SupportSection';
-import ModelSettingsSection, { type GpuConfig } from '../components/settings/ModelSettingsSection';
+import ModelSettingsSection from '../components/settings/ModelSettingsSection';
 import SystemInfoSection from '../components/settings/SystemInfoSection';
 import StorageSection from '../components/settings/StorageSection';
 import Dialog from '../components/Dialog';
@@ -29,14 +29,6 @@ import * as WebBrowser from 'expo-web-browser';
 import { DEFAULT_SETTINGS } from '../config/llamaConfig';
 import type { ModelSettings as StoredModelSettings } from '../services/ModelSettingsService';
 import { modelSettingsService } from '../services/ModelSettingsService';
-import {
-  gpuSettingsService,
-  DEFAULT_GPU_LAYERS,
-  GPU_LAYER_MIN,
-  GPU_LAYER_MAX,
-  type GpuSettings,
-} from '../services/GpuSettingsService';
-import { checkGpuSupport, type GpuSupport } from '../utils/gpuCapabilities';
 import { appleFoundationService } from '../services/AppleFoundationService';
 
 type SettingsScreenProps = {
@@ -106,10 +98,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     cacheSize: '0 B'
   });
   const [clearingType, setClearingType] = useState<'cache' | 'models' | null>(null);
-  const [gpuSettings, setGpuSettings] = useState<GpuSettings>(
-    gpuSettingsService.getSettingsSync()
-  );
-  const [gpuSupport, setGpuSupport] = useState<GpuSupport | null>(null);
   const isAppleDevice = Platform.OS === 'ios';
   const [appleFoundationEnabled, setAppleFoundationEnabled] = useState(false);
   const [appleFoundationSupported, setAppleFoundationSupported] = useState(false);
@@ -158,45 +146,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   useEffect(() => {
     let isActive = true;
 
-    gpuSettingsService
-      .loadSettings()
-      .then(settings => {
-        if (isActive) {
-          setGpuSettings(settings);
-        }
-      })
-      .catch(() => {
-        // Ignore errors; defaults remain in place.
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let isActive = true;
-
-    checkGpuSupport()
-      .then(support => {
-        if (isActive) {
-          setGpuSupport(support);
-        }
-      })
-      .catch(() => {
-        if (isActive) {
-          setGpuSupport({ isSupported: false, reason: 'unknown' });
-        }
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let isActive = true;
-
     const initializeAppleFoundation = async () => {
       if (!isAppleDevice) {
         if (isActive) {
@@ -227,22 +176,11 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     };
   }, [isAppleDevice]);
 
-  useEffect(() => {
-    if (gpuSupport && !gpuSupport.isSupported && gpuSettings.enabled) {
-      setGpuSettings(prev => ({ ...prev, enabled: false }));
-      gpuSettingsService.setEnabled(false).catch(() => {});
-    }
-  }, [gpuSupport, gpuSettings.enabled]);
-
   useFocusEffect(
     React.useCallback(() => {
       setModelSettings(llamaManager.getSettings());
       loadStorageInfo();
       loadInferenceEnginePreference();
-      gpuSettingsService
-        .loadSettings()
-        .then(setGpuSettings)
-        .catch(() => {});
     }, [])
   );
 
@@ -326,30 +264,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     }
   };
 
-  const handleGpuToggle = async (enabled: boolean) => {
-    const previous = gpuSettings.enabled;
-    setGpuSettings(prev => ({ ...prev, enabled }));
-
-    try {
-      await gpuSettingsService.setEnabled(enabled);
-    } catch (error) {
-      setGpuSettings(prev => ({ ...prev, enabled: previous }));
-      showDialog('Error', 'Failed to update GPU acceleration preference');
-    }
-  };
-
-  const handleGpuLayersChange = async (layers: number) => {
-    const previous = gpuSettings.layers;
-    setGpuSettings(prev => ({ ...prev, layers }));
-
-    try {
-      await gpuSettingsService.setLayers(layers);
-    } catch (error) {
-      setGpuSettings(prev => ({ ...prev, layers: previous }));
-      throw error;
-    }
-  };
-
   const handleSettingsChange = async (newSettings: Partial<typeof modelSettings>) => {
     try {
       const updatedSettings = { ...modelSettings, ...newSettings };
@@ -400,56 +314,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const handleCloseDialog = () => {
     setDialogConfig({ visible: false });
   };
-
-  const gpuConfig = React.useMemo<GpuConfig | undefined>(() => {
-    if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
-      return undefined;
-    }
-
-    const fallbackSupport: GpuSupport = Platform.OS === 'ios'
-      ? { isSupported: true }
-      : { isSupported: true, reason: 'unknown' };
-    const support = gpuSupport ?? fallbackSupport;
-
-    const label = Platform.OS === 'ios' ? 'Metal Acceleration' : 'OpenCL Acceleration';
-
-    let description =
-      Platform.OS === 'ios'
-        ? 'Run transformer layers on the Apple Metal GPU to reduce CPU usage.'
-        : 'Offload transformer layers to your device GPU via OpenCL.';
-
-    if (!support.isSupported) {
-      switch (support.reason) {
-        case 'ios_version':
-          description = 'Requires iOS 18 or newer to use Metal acceleration.';
-          break;
-        case 'no_adreno':
-          description = 'Requires an Adreno GPU to enable OpenCL acceleration.';
-          break;
-        case 'missing_cpu_features':
-          description = 'This CPU has missing required features for acceleration.';
-          break;
-        default:
-          description = 'GPU acceleration is not available on this device.';
-      }
-    } else if (support.reason === 'unknown' && Platform.OS === 'android') {
-      description = 'Attempts to use OpenCL for faster inference. Capability check is inconclusive.';
-    }
-
-    const config: GpuConfig = {
-      label,
-      description,
-      enabled: support.isSupported ? gpuSettings.enabled : false,
-      supported: support.isSupported,
-      value: gpuSettings.layers,
-      defaultValue: DEFAULT_GPU_LAYERS,
-      min: GPU_LAYER_MIN,
-      max: GPU_LAYER_MAX,
-      reason: support.reason,
-    };
-
-    return config;
-  }, [gpuSupport, gpuSettings.enabled, gpuSettings.layers]);
 
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 B';
@@ -753,9 +617,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           onOpenSystemPromptDialog={() => setShowSystemPromptDialog(true)}
           enableRemoteModels={enableRemoteModels}
           onToggleRemoteModels={handleRemoteModelsToggle}
-          gpuConfig={gpuConfig}
-          onToggleGpu={handleGpuToggle}
-          onGpuLayersChange={handleGpuLayersChange}
           showAppleFoundationToggle={isAppleDevice}
           appleFoundationEnabled={appleFoundationEnabled}
           onToggleAppleFoundation={handleAppleFoundationToggle}
