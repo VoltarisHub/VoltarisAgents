@@ -1,7 +1,7 @@
 
 ## InferrLM (Previously Inferra)
 <p>
-  <a href="" target="_blank"><img src="https://img.shields.io/badge/App_Version-0.8.6-6a1b9a" alt="App Version 0.8.6"></a>
+  <a href="" target="_blank"><img src="https://img.shields.io/badge/App_Version-0.8.7-6a1b9a" alt="App Version 0.8.7"></a>
   <a href="https://opensource.org/licenses/AGPL-3.0" target="_blank"><img src="https://img.shields.io/badge/License-AGPL--3.0-orange" alt="License: AGPL-3.0"></a>
 </p>
 <p>
