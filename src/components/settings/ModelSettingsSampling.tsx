@@ -1,9 +1,10 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, Switch } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, Switch, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import SettingSlider from '../SettingSlider';
+import type { GpuConfig } from './ModelSettingsCore';
 
 type ModelSettings = {
   maxTokens: number;
@@ -26,6 +27,8 @@ type ModelSettingsSamplingProps = {
   showMlxWarning?: boolean;
   noExtraBuffers?: boolean;
   onToggleNoExtraBuffers?: (enabled: boolean) => void;
+  gpuConfig?: GpuConfig;
+  onToggleGpu?: (enabled: boolean) => void;
 };
 
 const ModelSettingsSampling = ({
@@ -38,6 +41,8 @@ const ModelSettingsSampling = ({
   showMlxWarning,
   noExtraBuffers,
   onToggleNoExtraBuffers,
+  gpuConfig,
+  onToggleGpu,
 }: ModelSettingsSamplingProps) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
@@ -111,6 +116,48 @@ const ModelSettingsSampling = ({
             onValueChange={onToggleNoExtraBuffers}
             trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '80' }}
             thumbColor={noExtraBuffers ? themeColors.primary : themeColors.background}
+          />
+        </View>
+      )}
+
+      {gpuConfig && onToggleGpu && (
+        <View style={[styles.settingItem, styles.settingItemBorder, !gpuConfig.supported && styles.disabledItem]}>
+          <View style={styles.settingLeft}>
+            <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+              <MaterialCommunityIcons name="chip" size={22} color={iconColor} />
+            </View>
+            <View style={styles.settingTextContainer}>
+              <View style={styles.labelRow}>
+                <Text style={[styles.settingText, { color: themeColors.text }]}>
+                  {gpuConfig.label}
+                </Text>
+                {gpuConfig.experimental && (
+                  <View style={[styles.gpuBadge, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+                    <Text style={[styles.gpuBadgeText, { color: iconColor }]}>EXPERIMENTAL</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                {gpuConfig.description}
+              </Text>
+              {Platform.OS === 'ios' && (
+                <Text style={styles.unsupportedText}>Unsupported on MLX</Text>
+              )}
+              {!gpuConfig.supported && gpuConfig.reason && (
+                <Text style={[styles.gpuSupportText, { color: themeColors.secondaryText }]}>
+                  {gpuConfig.reason === 'ios_version' && 'Requires iOS 18 or newer.'}
+                  {gpuConfig.reason === 'no_adreno' && 'Requires an Adreno GPU.'}
+                  {gpuConfig.reason === 'missing_cpu_features' && 'Missing required CPU features.'}
+                </Text>
+              )}
+            </View>
+          </View>
+          <Switch
+            value={gpuConfig.enabled}
+            onValueChange={onToggleGpu}
+            disabled={!gpuConfig.supported}
+            trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '80' }}
+            thumbColor={gpuConfig.enabled ? themeColors.primary : themeColors.background}
           />
         </View>
       )}
@@ -344,6 +391,23 @@ const styles = StyleSheet.create({
     color: '#FF9500',
     fontWeight: '500',
     marginTop: 4,
+  },
+  disabledItem: {
+    opacity: 0.5,
+  },
+  gpuBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  gpuBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  gpuSupportText: {
+    fontSize: 12,
+    marginTop: 6,
   },
 });
 

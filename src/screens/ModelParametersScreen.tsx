@@ -3,7 +3,7 @@
   penalties, mirostat, DRY, and other advanced knobs).  Navigated to
   from the Model Settings section on the Settings screen.
 */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, ScrollView, TouchableOpacity, Text, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -14,6 +14,15 @@ import { theme } from '../constants/theme';
 import { llamaManager } from '../utils/LlamaManager';
 import { DEFAULT_SETTINGS } from '../config/llamaConfig';
 import type { ModelSettings } from '../services/ModelSettingsService';
+import type { GpuConfig } from '../components/settings/ModelSettingsCore';
+import {
+  gpuSettingsService,
+  GPU_LAYER_MIN,
+  GPU_LAYER_MAX,
+  DEFAULT_GPU_LAYERS,
+  type GpuSettings,
+} from '../services/GpuSettingsService';
+import { checkGpuSupport, type GpuSupport } from '../utils/gpuCapabilities';
 import AppHeader from '../components/AppHeader';
 import ModelSettingDialog from '../components/ModelSettingDialog';
 import StopWordsDialog from '../components/StopWordsDialog';
@@ -56,6 +65,86 @@ export default function ModelParametersScreen({ navigation, route }: Props) {
     llamaManager.getNoExtraBuffers()
   );
   const showMlxWarning = !isPerModel && Platform.OS === 'ios';
+
+  const [gpuSettings, setGpuSettings] = useState<GpuSettings>(
+    gpuSettingsService.getSettingsSync()
+  );
+  const [gpuSupport, setGpuSupport] = useState<GpuSupport | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    gpuSettingsService.loadSettings().then(s => { if (active) setGpuSettings(s); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    checkGpuSupport().then(s => { if (active) setGpuSupport(s); }).catch(() => {
+      if (active) setGpuSupport({ isSupported: false, reason: 'unknown' });
+    });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (gpuSupport && !gpuSupport.isSupported && gpuSettings.enabled) {
+      setGpuSettings(prev => ({ ...prev, enabled: false }));
+      gpuSettingsService.setEnabled(false).catch(() => {});
+    }
+  }, [gpuSupport, gpuSettings.enabled]);
+
+  const gpuConfig = React.useMemo<GpuConfig | undefined>(() => {
+    if (Platform.OS !== 'ios' && Platform.OS !== 'android') return undefined;
+
+    const fallback: GpuSupport = Platform.OS === 'ios'
+      ? { isSupported: true }
+      : { isSupported: true, reason: 'unknown' };
+    const support = gpuSupport ?? fallback;
+
+    const label = Platform.OS === 'ios' ? 'Metal Acceleration' : 'OpenCL Acceleration';
+    let description = Platform.OS === 'ios'
+      ? 'Run transformer layers on the Apple Metal GPU to reduce CPU usage.'
+      : 'Offload transformer layers to your device GPU via OpenCL.';
+
+    if (!support.isSupported) {
+      switch (support.reason) {
+        case 'ios_version':
+          description = 'Requires iOS 18 or newer to use Metal acceleration.';
+          break;
+        case 'no_adreno':
+          description = 'Requires an Adreno GPU to enable OpenCL acceleration.';
+          break;
+        case 'missing_cpu_features':
+          description = 'This CPU has missing required features for acceleration.';
+          break;
+        default:
+          description = 'GPU acceleration is not available on this device.';
+      }
+    } else if (support.reason === 'unknown' && Platform.OS === 'android') {
+      description = 'Attempts to use OpenCL for faster inference. Capability check is inconclusive.';
+    }
+
+    return {
+      label,
+      description,
+      enabled: support.isSupported ? gpuSettings.enabled : false,
+      supported: support.isSupported,
+      value: gpuSettings.layers,
+      defaultValue: DEFAULT_GPU_LAYERS,
+      min: GPU_LAYER_MIN,
+      max: GPU_LAYER_MAX,
+      reason: support.reason,
+    };
+  }, [gpuSupport, gpuSettings.enabled, gpuSettings.layers]);
+
+  const handleGpuToggle = async (enabled: boolean) => {
+    const previous = gpuSettings.enabled;
+    setGpuSettings(prev => ({ ...prev, enabled }));
+    try {
+      await gpuSettingsService.setEnabled(enabled);
+    } catch {
+      setGpuSettings(prev => ({ ...prev, enabled: previous }));
+    }
+  };
 
   const [dialogConfig, setDialogConfig] = useState<{
     visible: boolean;
@@ -196,6 +285,8 @@ export default function ModelParametersScreen({ navigation, route }: Props) {
             setNoExtraBuffers(enabled);
             await llamaManager.setNoExtraBuffers(enabled);
           }}
+          gpuConfig={gpuConfig}
+          onToggleGpu={handleGpuToggle}
         />
 
         <ModelSettingsControls
