@@ -34,7 +34,7 @@ export const DEFAULT_SETTINGS: ModelSettings = {
 export const LLAMA_INIT_CONFIG = {
   use_mlock: false,
   use_mmap: Platform.OS === 'android' ? 'smart' : 'true',
-  n_ctx: 2048,
+  n_ctx: 4096,
   n_batch: 512,
   n_ubatch: 512,
   n_parallel: 1,
