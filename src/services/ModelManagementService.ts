@@ -146,7 +146,6 @@ export class ModelManagementService {
   }
 
   static setupModelChangeListeners(
-    activeProvider: ProviderType | null,
     setActiveProvider: Dispatch<SetStateAction<ProviderType | null>>
   ) {
     const handleModelChange = () => {
@@ -154,16 +153,11 @@ export class ModelManagementService {
       if (modelPath) {
         setActiveProvider('local');
         chatManager.setCurrentProvider('local');
-      } else if (activeProvider === 'local') {
-        setActiveProvider(null);
-        chatManager.setCurrentProvider('local');
       }
     };
     
     const handleModelUnload = () => {
-      if (activeProvider === 'local') {
-        setActiveProvider(null);
-      }
+      setActiveProvider(prev => prev === 'local' ? null : prev);
     };
     
     handleModelChange();

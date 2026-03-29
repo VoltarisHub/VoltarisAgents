@@ -728,11 +728,10 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
 
   useEffect(() => {
     const cleanup = ModelManagementService.setupModelChangeListeners(
-      activeProvider,
       setActiveProvider
     );
     return cleanup;
-  }, [activeProvider]);
+  }, []);
 
 
 
