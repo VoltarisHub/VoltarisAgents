@@ -52,7 +52,7 @@ export class MessageProcessingService {
       const isOnlineModel = !!activeProvider && ['gemini','chatgpt','claude'].includes(OnlineModelService.getBaseProvider(activeProvider));
       const isAppleFoundation = activeProvider === 'apple-foundation';
 
-      const fallbackSystemPrompt = settings.systemPrompt || 'You are a helpful AI assistant.';
+      const fallbackSystemPrompt = settings.systemPrompt || '';
       let systemPrompt = fallbackSystemPrompt;
       if (isOnlineModel && activeProvider) {
         const providerSystemInstruction = await onlineModelService.getSystemInstruction(activeProvider);
@@ -65,7 +65,9 @@ export class MessageProcessingService {
         ? [{ role: 'system', content: systemPrompt, id: 'system-prompt' }, ...currentMessages.filter(msg => msg.role !== 'system')]
         : currentMessages.some(msg => msg.role === 'system')
           ? currentMessages
-          : [{ role: 'system', content: systemPrompt, id: 'system-prompt' }, ...currentMessages];
+          : systemPrompt
+            ? [{ role: 'system', content: systemPrompt, id: 'system-prompt' }, ...currentMessages]
+            : currentMessages;
       const skipRag = this.shouldSkipRag(processedMessages) || await this.shouldSkipRagForInput(processedMessages);
       const responderModelName = await this.resolveResponderModelName(activeProvider);
       if (responderModelName) {
