@@ -130,15 +130,6 @@ const ModelSettingsAdvanced = ({
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
               Continue generating even if the model wants to stop. Useful for forcing longer responses.
             </Text>
-            {(modelSettings.ignoreEos ?? false) !== (defaultSettings.ignoreEos ?? false) && (
-              <TouchableOpacity
-                onPress={() => onSettingsChange({ ignoreEos: defaultSettings.ignoreEos ?? false })}
-                style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
-              >
-                <MaterialCommunityIcons name="refresh" size={14} color={iconColor} />
-                <Text style={[styles.resetText, { color: iconColor }]}>Reset to Default</Text>
-              </TouchableOpacity>
-            )}
           </View>
         </View>
         <Switch

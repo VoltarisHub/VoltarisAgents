@@ -102,15 +102,6 @@ const ModelSettingsControls = ({
             {showMlxWarning && (
               <Text style={styles.unsupportedText}>Unsupported on MLX</Text>
             )}
-            {(modelSettings.jinja ?? false) !== (defaultSettings.jinja ?? false) && (
-              <TouchableOpacity
-                onPress={() => onSettingsChange({ jinja: defaultSettings.jinja ?? false })}
-                style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
-              >
-                <MaterialCommunityIcons name="refresh" size={14} color={iconColor} />
-                <Text style={[styles.resetText, { color: iconColor }]}>Reset to Default</Text>
-              </TouchableOpacity>
-            )}
           </View>
         </View>
         <Switch
@@ -170,15 +161,6 @@ const ModelSettingsControls = ({
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
               Include AI thinking/reasoning parts in context. Disabling saves context space but may impact performance.
             </Text>
-            {(modelSettings.enableThinking ?? true) !== (defaultSettings.enableThinking ?? true) && (
-              <TouchableOpacity
-                onPress={() => onSettingsChange({ enableThinking: defaultSettings.enableThinking ?? true })}
-                style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
-              >
-                <MaterialCommunityIcons name="refresh" size={14} color={iconColor} />
-                <Text style={[styles.resetText, { color: iconColor }]}>Reset to Default</Text>
-              </TouchableOpacity>
-            )}
           </View>
         </View>
         <Switch
