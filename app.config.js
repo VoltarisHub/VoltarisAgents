@@ -101,6 +101,8 @@ export default {
     extra: {
       autoUpdate: true,
       changelog: [
+        "Added API Setup Guide with quick-start steps for connecting OpenAI-compatible clients.",
+        "Local server now lists available models with one-tap copy for easy client configuration.",
         "Resolved critical crashes & bugfixes.",
       ],
       GEMINI_API_KEY: process.env.GEMINI_API_KEY,
