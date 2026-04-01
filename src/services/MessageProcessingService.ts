@@ -178,28 +178,52 @@ export class MessageProcessingService {
     firstTokenTime: number | null,
     updateCounter: number
   ): Promise<void> {
+    const thinkParser = new ThinkTagParser();
+    let thinking = '';
+    let isThinking = false;
+
     const streamCallback = (token: string) => {
       if (this.cancelGenerationRef.current) {
         return false;
       }
-      
-      const currentTime = Date.now();
-      
-      if (firstTokenTime === null && token.trim().length > 0) {
-        firstTokenTime = currentTime - startTime;
+
+      const chunks = thinkParser.feed(token);
+
+      for (const chunk of chunks) {
+        if (chunk.type === 'open') {
+          isThinking = true;
+          continue;
+        }
+        if (chunk.type === 'close') {
+          isThinking = false;
+          continue;
+        }
+
+        if (isThinking) {
+          thinking += chunk.text;
+          this.callbacks.setStreamingThinking(thinking.trim());
+          continue;
+        }
+
+        const currentTime = Date.now();
+
+        if (firstTokenTime === null && chunk.text.trim().length > 0) {
+          firstTokenTime = currentTime - startTime;
+        }
+
+        tokenCount++;
+        fullResponse += chunk.text;
       }
-      
-      tokenCount++;
-      fullResponse += token;
-      
-      const duration = (currentTime - startTime) / 1000;
+
+      const nowTime = Date.now();
+      const duration = (nowTime - startTime) / 1000;
       let avgTokenTime = undefined;
-      
+
       if (firstTokenTime !== null && tokenCount > 0) {
-        const timeAfterFirstToken = currentTime - (startTime + firstTokenTime);
+        const timeAfterFirstToken = nowTime - (startTime + firstTokenTime);
         avgTokenTime = timeAfterFirstToken / tokenCount;
       }
-      
+
       this.callbacks.setStreamingMessage(fullResponse);
       this.callbacks.setStreamingStats({
         tokens: tokenCount,
@@ -207,22 +231,22 @@ export class MessageProcessingService {
         firstTokenTime: firstTokenTime || undefined,
         avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined
       });
-      
+
       updateCounter++;
-      if (updateCounter % 10 === 0 || 
-          fullResponse.endsWith('.') || 
-          fullResponse.endsWith('!') || 
+      if (updateCounter % 10 === 0 ||
+          fullResponse.endsWith('.') ||
+          fullResponse.endsWith('!') ||
           fullResponse.endsWith('?')) {
         let debouncedAvgTokenTime = undefined;
         if (firstTokenTime !== null && tokenCount > 0) {
           const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
           debouncedAvgTokenTime = timeAfterFirstToken / tokenCount;
         }
-        
+
         this.callbacks.updateMessageContentDebounced(
           messageId,
           fullResponse,
-          '',
+          thinking.trim(),
           {
             duration: (Date.now() - startTime) / 1000,
             tokens: tokenCount,
@@ -231,7 +255,7 @@ export class MessageProcessingService {
           }
         );
       }
-      
+
       return !this.cancelGenerationRef.current;
     };
 
@@ -610,7 +634,7 @@ export class MessageProcessingService {
       await chatManager.updateMessageContent(
         messageId,
         fullResponse,
-        '',
+        thinking.trim(),
         {
           duration: (Date.now() - startTime) / 1000,
           tokens: tokenCount,
