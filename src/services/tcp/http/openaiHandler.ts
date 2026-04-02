@@ -332,11 +332,16 @@ export async function handleOpenAIChatCompletions(
     const localSSEBegun = Date.now();
     logger.startStream(localSSEStreamId, target.model.name, path, parsed.messages);
 
+    let disconnected = false;
+    const onClose = () => { disconnected = true; engineService.stop(); };
+    socket.on('close', onClose);
+
     try {
       await engineService.mgr().gen(
         parsed.messages as any,
         {
           onToken: (token: string) => {
+            if (disconnected) return false;
             logger.appendStreamToken(localSSEStreamId, token);
             try {
               writeSSEEvent(socket, buildSSEChunk(id, target.model.name, token, null));
@@ -346,13 +351,17 @@ export async function handleOpenAIChatCompletions(
           settings,
         }
       );
-      writeSSEEvent(socket, buildSSEChunk(id, target.model.name, '', 'stop'));
-      endSSEStream(socket);
+      if (!disconnected) {
+        writeSSEEvent(socket, buildSSEChunk(id, target.model.name, '', 'stop'));
+        endSSEStream(socket);
+      }
       logger.endStream(localSSEStreamId, Date.now() - localSSEBegun, 200);
       logger.logWebRequest(method, path, 200);
     } catch {
       try { endSSEStream(socket); } catch { try { socket.destroy(); } catch {} }
       logger.logWebRequest(method, path, 500);
+    } finally {
+      socket.removeListener('close', onClose);
     }
     return;
   }
