@@ -359,7 +359,7 @@ class LlamaManager {
           }
         } catch {}
         
-        Promise.all([
+        await Promise.all([
           wasMultimodal ? withTimeout(
             this.multimodalService.releaseMultimodal(contextToRelease),
             3000
@@ -893,7 +893,7 @@ class LlamaManager {
           }
         } catch {}
         
-        Promise.all([
+        await Promise.all([
           wasMultimodal ? withTimeout(
             this.multimodalService.releaseMultimodal(contextToRelease),
             3000
