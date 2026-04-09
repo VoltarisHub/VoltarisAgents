@@ -1,0 +1,23 @@
+{
+  "experimentId": "",
+  "version": "1.0.0",
+  "createdAt": "",
+  "createdBy": "",
+  "description": "",
+  "parameters": {
+    "tokenSymbol": "",
+    "analysisWindowMinutes": 0,
+    "volatilityThreshold": 0.0,
+    "liquidityThresholdUsd": 0.0,
+    "flagsMask": 0
+  },
+  "status": "draft",
+  "results": null,
+  "tags": [],
+  "notes": "",
+  "metadata": {
+    "lastUpdated": "",
+    "source": "",
+    "comments": []
+  }
+}
